@@ -1,0 +1,18 @@
+[project]
+name = "ice-quantification"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = []
+
+[tool.ruff]
+line-length = 120
+
+[tool.ruff.format]
+quote-style = "single"
+indent-style = "tab"
+
+[tool.ruff.lint]
+#select = ["E", "F"]
+ignore = ["F401"]
