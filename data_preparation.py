@@ -1,30 +1,33 @@
-import torch
+from torch.utils.data import DataLoader, Subset, random_split
 from torchvision import datasets, transforms
+
 from config import CONFIG
-from torch.utils.data import DataLoader, random_split, Subset
 
 
 class DataPreparation:
-    def __init__(self):
-        self.batch_size = CONFIG['TRAINING']['BATCH_SIZE']
-        self.root_path = './data/MNIST'
-        self.transform = transforms.Compose([
-            transforms.ToTensor(),
-            #transforms.Normalize((0.5,), (0.5,))  # Normalize with mean and std for grayscale images
-        ])
+    def __init__(self) -> None:
+        self.batch_size = CONFIG["TRAINING"]["BATCH_SIZE"]
+        self.root_path = "./data/MNIST"
+        self.transform = transforms.Compose(
+            [
+                transforms.ToTensor(),
+                # transforms.Normalize((0.5,), (0.5,))  # Normalize with mean and std for grayscale images
+            ]
+        )
 
-    def create_dataloaders(self):
+    def create_dataloaders(self) -> (DataLoader, DataLoader, DataLoader):
         train_data = datasets.MNIST(self.root_path, train=True, download=True, transform=self.transform)
         test_data = datasets.MNIST(self.root_path, train=False, download=True, transform=self.transform)
 
         # Get all the indices for the data samples that are not '6'
-        indices = [i for i, target in enumerate(train_data.targets) if target != 6]
+        unwanted_number = 6
+        indices = [i for i, target in enumerate(train_data.targets) if target != unwanted_number]
 
         # Create a subset of the data with the indices
         train_data = Subset(train_data, indices)
 
         # Separate train into train and validation
-        train_portion = CONFIG['TRAINING']['TRAIN_PORTION']
+        train_portion = CONFIG["TRAINING"]["TRAIN_PORTION"]
         train_size = int(len(train_data) * train_portion)
         val_size = len(train_data) - train_size
 
