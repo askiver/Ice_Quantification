@@ -5,11 +5,11 @@ import cv2
 
 # Keyboard button to image-category
 KEY_TO_CATEGORY = {
-    "1": "0",
-    "2": "1",
-    "3": "2",
-    "4": "3",
-    "u": "unknown",
+    "z": "0",
+    "x": "1",
+    "c": "2",
+    "v": "3",
+    "-": "unknown",
     "s": "skip",
     "q": "quit",  # 'q' will quit the program
 }
@@ -17,6 +17,13 @@ KEY_TO_CATEGORY = {
 # Paths
 IMAGES_FOLDER = "images"  # Update with the folder containing your images
 OUTPUT_CSV = "image_labels/labeled_data.csv"
+
+def resize_image(img, max_width, max_height):
+    height, width = img.shape[:2]
+    scaling_factor = min(max_width / width, max_height / height)
+    new_width = int(width * scaling_factor)
+    new_height = int(height * scaling_factor)
+    return cv2.resize(img, (new_width, new_height))
 
 def load_progress():
     """Load progress from the CSV file."""
@@ -47,33 +54,35 @@ def label_images():
     labeled_images = load_progress()
     all_images = get_all_image_paths(IMAGES_FOLDER)
 
+    # Only keep images not yet labeled
+    remaining_images = list(set(all_images) - set(labeled_images))
+
     # Shuffle images
-    random.shuffle(all_images)
+    random.shuffle(remaining_images)
 
     with open(OUTPUT_CSV, "a", newline="") as file:
         writer = csv.writer(file)
 
-        for image_path in all_images:
-            # Check if the image is already labeled
-            relative_image_path = os.path.relpath(image_path, IMAGES_FOLDER)
-            if relative_image_path in labeled_images:
-                continue  # Skip already labeled images
+        for idx, image_path in enumerate(remaining_images):
+
+            print(f"Number of images to label:{len(remaining_images) - idx}")
 
             # Load and prepare the image
             img = cv2.imread(image_path)
             display_img = img.copy()
+            display_img = resize_image(display_img, 1400, 1400)
 
             # Display key-to-category mappings on the image
             y_offset = 20
             draw_text_on_image(display_img, "Key Mappings:", (10, y_offset), font_scale=0.6, color=(0, 255, 0))
             for key, category in KEY_TO_CATEGORY.items():
                 y_offset += 20
-                draw_text_on_image(display_img, f"{key}: {category}", (10, y_offset), font_scale=0.5)
+                draw_text_on_image(display_img, f"{key}: {category}", (10, y_offset), font_scale=0.5, color=(0, 255, 0))
 
             while True:
                 # Show the image with instructions
                 cv2.imshow("Labeling", display_img)
-                print(f"Image: {relative_image_path}")
+                print(f"Image: {image_path}")
 
                 # Wait for a key press
                 key = cv2.waitKey(0)
@@ -85,7 +94,7 @@ def label_images():
 
                 match command:
                     case "skip":
-                        print(f"Skipping {relative_image_path}.")
+                        print(f"Skipping {image_path}.")
                         break
 
                     case "quit":
@@ -94,9 +103,9 @@ def label_images():
                         return
 
                     case command if command in KEY_TO_CATEGORY.values():
-                        writer.writerow([relative_image_path, command])
-                        labeled_images.add(relative_image_path)
-                        print(f"Labeled {relative_image_path} as {command}.")
+                        writer.writerow([image_path, command])
+                        labeled_images.add(image_path)
+                        print(f"Labeled {image_path} as {command}.")
                         file.flush()  # Flush the file buffer to ensure the data is written immediately
                         break
 
