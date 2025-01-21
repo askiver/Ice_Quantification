@@ -38,11 +38,8 @@ def load_progress():
         with open(OUTPUT_CSV, "r") as file:
             reader = csv.reader(file)
             for row in reader:
-                for item in row:  # Process each item in the row
-                    if item.startswith("("):
-                        ordered_images.append(eval(item))  # Convert back to tuple
-                    else:
-                        ordered_images.append(item)
+                if row:
+                    ordered_images.append(row)
 
     return ordered_images
 
@@ -52,7 +49,7 @@ def save_progress(ordered_images):
         writer = csv.writer(file)
         # Convert tuples to strings for saving
         for item in ordered_images:
-            writer.writerow([str(item)])
+            writer.writerow(item)
 
 # Display images and get user input
 def compare_images(image_a, image_b):
@@ -81,7 +78,7 @@ def compare_images(image_a, image_b):
 def insert_image(new_image, ordered_images):
 
     if not ordered_images:
-        ordered_images.append(new_image)
+        ordered_images.append([new_image])
         return
 
     # Binary search for the appropriate position
@@ -90,11 +87,7 @@ def insert_image(new_image, ordered_images):
         mid = (low + high) // 2
         current = ordered_images[mid]
 
-        # Compare the new image with the current position
-        if isinstance(current, tuple):  # Handle tied images
-            relation = compare_images(new_image, current[0])
-        else:
-            relation = compare_images(new_image, current)
+        relation = compare_images(new_image, current[0])
 
         match relation:
             case ">":
@@ -108,10 +101,7 @@ def insert_image(new_image, ordered_images):
             case "=":
                 print("There is a tie")
                 # Merge into the existing tie group
-                if isinstance(current, tuple):
-                    ordered_images[mid] = current + (new_image,)
-                else:
-                    ordered_images[mid] = (current, new_image)
+                current.append(new_image)
                 return
 
             case "quit":
@@ -119,7 +109,7 @@ def insert_image(new_image, ordered_images):
                 sys.exit(0)
 
     # Insert the new image in the correct position
-    ordered_images.insert(low, new_image)
+    ordered_images.insert(low, [new_image])
 
 # Main function
 def label_orderings():
@@ -131,7 +121,7 @@ def label_orderings():
     images = select_angle()
 
     for idx, new_image in enumerate(images):
-        if any(new_image in group for group in ordered_images if isinstance(group, tuple)) or new_image in ordered_images:
+        if any(new_image in group for group in ordered_images if isinstance(group, list)) or new_image in ordered_images:
             continue  # Skip already ordered images
 
         print(f"Images left to label: {len(images) - idx}")
