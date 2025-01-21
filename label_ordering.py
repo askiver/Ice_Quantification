@@ -7,6 +7,7 @@ import sys
 # Define paths
 IMAGES_FOLDER = "images"  # Folder containing the images
 OUTPUT_CSV = "image_labels/order_labels.csv"
+SELECTED_ANGLE = "WT_41_SVIV03"
 
 # Select fitting key inputs
 KEY_TO_COMMAND = {
@@ -15,6 +16,20 @@ KEY_TO_COMMAND = {
     "t": "=",
     "q": "quit",
 }
+
+# Only select certain angles to label
+def select_angle():
+    labelled_images = []
+    with open("image_labels/labeled_data.csv", "r") as file:
+        reader = csv.reader(file)
+        for row in reader:
+            img_path, value = row[0], row[1]
+
+            if SELECTED_ANGLE in img_path:
+                if value != "unknown" and int(value) > 0:
+                    labelled_images.append(img_path)
+
+    return labelled_images
 
 # Load progress from CSV
 def load_progress():
@@ -112,7 +127,8 @@ def label_orderings():
     ordered_images = load_progress()
 
     # Get all images from the folder
-    images = get_all_image_paths(IMAGES_FOLDER)
+    #images = get_all_image_paths(IMAGES_FOLDER)
+    images = select_angle()
 
     for idx, new_image in enumerate(images):
         if any(new_image in group for group in ordered_images if isinstance(group, tuple)) or new_image in ordered_images:
