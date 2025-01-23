@@ -13,7 +13,7 @@ class Trainer:
         self.device = CONFIG["TRAINING"]["DEVICE"]
         self.criterion = model.loss
         self.logger = logging.getLogger(__name__)
-        self.optimizer = torch.optim.Adam(
+        self.optimizer = torch.optim.AdamW(
             self.model.parameters(),
             lr=CONFIG["TRAINING"]["LEARNING_RATE"],
             weight_decay=CONFIG["TRAINING"]["WEIGHT_DECAY"],
@@ -26,24 +26,25 @@ class Trainer:
         for epoch in range(CONFIG["TRAINING"]["EPOCHS"]):
             self.model.train()
             epoch_loss = torch.tensor(0.0, device=self.device)
-            for train_data_batch, _ in train_loader:
-                train_data = train_data_batch.to(self.device)
-                self.optimizer.zero_grad()
-                output = self.model(train_data)
-                loss = self.criterion(*output, train_data)
+            for higher_img_batch, lower_img_batch, _, _ in train_loader:
+                higher_img_data, lower_img_data = higher_img_batch.to(self.device), lower_img_batch.to(self.device)
+
+                higher_img_output, lower_img_output = self.model(higher_img_data), self.model(lower_img_data)
+                loss = self.criterion(higher_img_output, lower_img_output)
                 epoch_loss += loss.item()
+                self.optimizer.zero_grad()
                 loss.backward()
                 self.optimizer.step()
             # loss_history.append(epoch_loss)
             self.logger.info("Epoch: %d, Loss: %.6f", epoch, epoch_loss.to("cpu").item() / train_length)
 
             self.model.eval()
-            """
+
             epoch_val_loss = torch.tensor(0.0, device=self.device)
-            for val_data, _ in val_loader:
-                val_data = val_data.to(self.device)
-                output = self.model(val_data)
-                loss = self.criterion(output, val_data)
+            for higher_img_batch_val, lower_img_batch_val, _, _ in val_loader:
+                higher_img_data_val, lower_img_data_val = higher_img_batch_val.to(self.device), lower_img_batch_val.to(self.device)
+                higher_img_output_val, lower_img_output_val = self.model(higher_img_data_val), self.model(lower_img_data_val)
+                loss = self.criterion(higher_img_output_val, lower_img_output_val)
                 epoch_val_loss += loss.item()
             print(f"Epoch: {epoch}, Loss: {epoch_val_loss.to('cpu').item()/val_length}")
-            """
+

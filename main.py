@@ -4,7 +4,7 @@ import torch
 
 from config import CONFIG
 from data_preparation import DataPreparation
-from model import AutoEncoder, VariationalAutoEncoder
+from model import AutoEncoder, VariationalAutoEncoder, SnowRanker
 from trainer import Trainer
 from utils import show_autoencoder_results
 
@@ -27,9 +27,9 @@ CONFIG["TRAINING"]["DEVICE"] = device
 
 if __name__ == "__main__":
     setup_logger()
-    model = VariationalAutoEncoder().to(device)
+    model = SnowRanker(3, 5).to(device)
     data_preparation = DataPreparation()
     train_loader, val_loader, test_loader = data_preparation.create_dataloaders()
     trainer = Trainer(model)
     trainer.train(train_loader, val_loader)
-    show_autoencoder_results(model, test_loader)
+    #show_autoencoder_results(model, test_loader)

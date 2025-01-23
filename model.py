@@ -107,3 +107,49 @@ class VariationalAutoEncoder(nn.Module):
         kl_divergence = -0.5 * torch.sum(1 + log_var - mu.pow(2) - log_var.exp())
 
         return recon_loss + kl_divergence
+
+
+
+class SnowRanker(nn.Module):
+
+    def __init__(self, num_channels, kernel_size):
+        super().__init__()
+
+        image_height = CONFIG["TRAINING"]["IMAGE_DIMENSIONS"]["HEIGHT"]
+        image_width = CONFIG["TRAINING"]["IMAGE_DIMENSIONS"]["WIDTH"]
+
+        self.layers = nn.ModuleList()
+
+        # Add cnn layers
+        for _ in range(3):
+            self.layers.append(nn.Conv2d(num_channels,num_channels*3, kernel_size, 1, kernel_size // 2))
+            self.layers.append(nn.MaxPool2d(2, 2))
+            self.layers.append(nn.BatchNorm2d(num_channels*3))
+            self.layers.append(nn.GELU())
+            num_channels *= 3
+            image_height, image_width = image_height//2, image_width//2
+
+        self.layers.append(nn.Flatten())
+        # Add fc layers
+        num_neurons = image_height * image_width * num_channels
+        self.layers.append(nn.Linear(num_neurons, 200))
+        self.layers.append(nn.GELU())
+        self.layers.append(nn.Linear(200, 20))
+        self.layers.append(nn.GELU())
+        self.layers.append(nn.Linear(20, 1))
+
+
+    def forward(self, x):
+        for layer in self.layers:
+            x = layer(x)
+        return x
+
+
+
+
+    def loss(self, higher_img_output, lower_img_output):
+
+        criterion = nn.MarginRankingLoss(1.0)
+
+        return criterion(higher_img_output, lower_img_output, torch.ones_like(higher_img_output))
+

@@ -32,7 +32,7 @@ def select_angle():
     return labelled_images
 
 # Load progress from CSV
-def load_progress():
+def load_progress_ordered():
     ordered_images = []
     if os.path.exists(OUTPUT_CSV):
         with open(OUTPUT_CSV, "r") as file:
@@ -114,7 +114,7 @@ def insert_image(new_image, ordered_images):
 # Main function
 def label_orderings():
     # Load already ordered images
-    ordered_images = load_progress()
+    ordered_images = load_progress_ordered()
 
     # Get all images from the folder
     #images = get_all_image_paths(IMAGES_FOLDER)
