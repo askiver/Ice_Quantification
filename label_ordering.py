@@ -56,8 +56,8 @@ def compare_images(image_a, image_b):
     img_a = cv2.imread(image_a)
     img_b = cv2.imread(image_b)
 
-    img_a_resized = resize_image(img_a, 800, 800)
-    img_b_resized = resize_image(img_b, 800, 800)
+    img_a_resized = resize_image(img_a, 1200, 1200)
+    img_b_resized = resize_image(img_b, 1200, 1200)
 
     # Create a single window with two images
     combined_image = cv2.hconcat([img_a_resized, img_b_resized])
