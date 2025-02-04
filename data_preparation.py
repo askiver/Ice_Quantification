@@ -16,32 +16,39 @@ class PairWiseImageDataset(Dataset):
         # Generate ordered image pairs
         # Currently do not support ties
 
-        transform = transforms.Compose([
+        self.transform = transforms.Compose([
             transforms.Resize((image_height, image_width)),
             transforms.ToTensor(),
         ])
 
         self.pairs = []
+        # Due to ties, images are ordered in groups
+        for idx, lower_group in enumerate(ordered_images):
+            for higher_group in ordered_images[idx + 1:]:
+                for lower_img_path in lower_group:
+                    lower_img = self.transform(Image.open(lower_img_path).convert("RGB"))
+                    for higher_img_path in higher_group:
+                        higher_img = self.transform(Image.open(higher_img_path).convert("RGB"))
+                        # Leftmost always lower
+                        self.pairs.append((lower_img, higher_img, lower_img_path, higher_img_path))
 
-        for idx, higher_group in enumerate(ordered_images):
-            for lower_group in ordered_images[idx + 1:]:
-                for higher_img_path in higher_group:
-                    higher_img_tensor = transform(Image.open(higher_img_path).convert("RGB"))
-                    for lower_img_path in lower_group:
-                        lower_img_tensor = transform(Image.open(lower_img_path).convert("RGB"))
-                        # Leftmost always higher
-                        self.pairs.append((higher_img_tensor, lower_img_tensor, higher_img_path, lower_img_path))
-
-        if train:
-            self.pairs = self.pairs[:int(len(self.pairs)*train_portion)]
-        else:
-            self.pairs = self.pairs[int(len(self.pairs)*train_portion):]
+        split_idx = int(len(self.pairs) * train_portion)
+        self.pairs = self.pairs[:split_idx] if train else self.pairs[split_idx:]
 
 
     def __len__(self):
         return len(self.pairs)
 
     def __getitem__(self, idx):
+        """
+        lower_img_path, higher_img_path = self.pairs[idx]
+
+        # Load and transform images on-the-fly
+        lower_img = self.transform(Image.open(lower_img_path).convert("RGB"))
+        higher_img = self.transform(Image.open(higher_img_path).convert("RGB"))
+
+        return lower_img, higher_img, lower_img_path, higher_img_path
+        """
         return self.pairs[idx]
 
 

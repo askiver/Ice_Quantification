@@ -1,7 +1,7 @@
 import torch
 import torch.nn.functional as f
 from torch import nn
-
+import torch.nn.functional as F
 from config import CONFIG
 
 
@@ -137,6 +137,7 @@ class SnowRanker(nn.Module):
         self.layers.append(nn.Linear(200, 20))
         self.layers.append(nn.GELU())
         self.layers.append(nn.Linear(20, 1))
+        #self.layers.append(nn.ReLU())
 
 
     def forward(self, x):
@@ -145,11 +146,10 @@ class SnowRanker(nn.Module):
         return x
 
 
+    def loss(self, lower_img_output, higher_img_output):
 
+        reward_diff = higher_img_output - lower_img_output
+        loss = -torch.mean(F.logsigmoid(reward_diff))
 
-    def loss(self, higher_img_output, lower_img_output):
-
-        criterion = nn.MarginRankingLoss(1.0)
-
-        return criterion(higher_img_output, lower_img_output, torch.ones_like(higher_img_output))
+        return loss
 
