@@ -1,4 +1,4 @@
-
+import csv
 from pathlib import Path
 from config import CONFIG
 import matplotlib.pyplot as plt
@@ -113,7 +113,7 @@ def evaluate_model_accuracy(model, dataloader):
     total = 0
 
     with torch.no_grad():  # No need for gradient tracking
-        for lower_img, higher_img, _, _ in dataloader:
+        for lower_img, higher_img, _, _, _ in dataloader:
             # Move images to the correct device
             higher_img = higher_img.to(device)
             lower_img = lower_img.to(device)
@@ -125,8 +125,6 @@ def evaluate_model_accuracy(model, dataloader):
             # Compare predictions
             correct += (higher_scores > lower_scores).sum().item()
             total += higher_img.size(0)  # Batch size
-
-            print(f"Batch size: {higher_img.size(0)}, Correct: {correct}, Total: {total}")
 
     accuracy = (correct / total) * 100  # Convert to percentage
     print(accuracy)
@@ -142,7 +140,7 @@ def visualize_predictions(model, dataloader, num_samples=5):
     all_samples = []  # Store all image pairs for random selection
 
     with torch.no_grad():
-        for lower_img, higher_img, _, _ in dataloader:
+        for lower_img, higher_img, _, _, _ in dataloader:
             higher_img = higher_img.to(device)
             lower_img = lower_img.to(device)
 
@@ -166,8 +164,8 @@ def visualize_predictions(model, dataloader, num_samples=5):
         axes = [axes]  # Ensure axes is iterable when only one sample is chosen
 
     for i, (img_a, img_b, score_a, score_b) in enumerate(selected_samples):
-        img_a = transform(img_a)  # Convert to PIL image
-        img_b = transform(img_b)
+        img_a = transform(img_a[:3, :, :])  # Convert to PIL image, Only retrieve the first 3 channels if reference image has been added
+        img_b = transform(img_b[:3, :, :])
 
         correct = score_a > score_b  # Check correctness
 
@@ -194,7 +192,7 @@ def evaluate_and_sort_results(model, test_loader=None):
 
     else:
         flattened_set = set()
-        for _, _, lower_img_paths, _ in test_loader:
+        for _, _, lower_img_paths, _, _ in test_loader:
             for i in range(len(lower_img_paths)):
                 flattened_set.add(lower_img_paths[i])
         image_paths = list(flattened_set)
@@ -203,6 +201,7 @@ def evaluate_and_sort_results(model, test_loader=None):
     # Ensure evaluation mode
     model.eval()
     device = CONFIG["TRAINING"]["DEVICE"]
+    reference_image = CONFIG["TRAINING"]["REFERENCE_IMAGE"]
 
     # Define transformations (ensure consistency with training)
     transform = transforms.Compose([
@@ -217,7 +216,13 @@ def evaluate_and_sort_results(model, test_loader=None):
         for image_path in image_paths:
             # Load and preprocess image
             image = Image.open(image_path).convert("RGB")
-            image_tensor = transform(image).unsqueeze(0).to(device)  # Add batch dimension
+            image_tensor = transform(image)
+
+            if reference_image:
+                image_tensor = add_reference_image(image_tensor, transform)
+
+            # add batch dimension and move image to device
+            image_tensor = image_tensor.unsqueeze(0).to(device)
 
             # Get model prediction
             score = model(image_tensor).cpu().item()  # Convert tensor output to scalar
@@ -251,7 +256,7 @@ def evaluate_and_sort_results(model, test_loader=None):
         shutil.copy(image_path, new_image_path)  # Copy image to new location
 
 
-def create_image_splits(ordered_images, train_ratio=0.7, val_ratio=0.15):
+def create_image_splits(ordered_images, train_ratio, val_ratio):
 
     if train_ratio + val_ratio >= 1:
         raise ValueError("Train and validation ratios must sum to less than 1.")
@@ -271,9 +276,37 @@ def create_image_splits(ordered_images, train_ratio=0.7, val_ratio=0.15):
     test_indices = sorted(indices[train_size + val_size:])
 
     # Use indices to extract groups while maintaining original ordering
-    train_groups = [ordered_images[i] for i in train_indices]
-    val_groups = [ordered_images[i] for i in val_indices]
-    test_groups = [ordered_images[i] for i in test_indices]
+    train_groups = [(ordered_images[i], i) for i in train_indices]
+    val_groups = [(ordered_images[i], i) for i in val_indices]
+    test_groups = [(ordered_images[i], i) for i in test_indices]
 
     return train_groups, val_groups, test_groups
 
+def retrieve_snowless_images(windmill, angle):
+    snowless_images = []
+    with open("image_labels/labeled_data.csv", "r") as file:
+        reader = csv.reader(file)
+        for row in reader:
+            img_path, value = row[0], row[1]
+
+            windmill_str = f"WT_{windmill}_SVIV" + str(angle).zfill(2)
+
+            if windmill_str in img_path and value == "0":
+                snowless_images.append(img_path)
+
+    return snowless_images
+
+def add_reference_image(original_image, transform, snowless_images=None):
+    if not snowless_images:
+        snowless_images = retrieve_snowless_images(41, "03")
+    # Choose random image as reference image
+    reference_image = random.choice(snowless_images)
+    reference_image = transform(Image.open(reference_image).convert("RGB"))
+
+    # combine images
+    return torch.cat([original_image, reference_image], 0)
+
+
+if __name__ == "__main__":
+
+    pass

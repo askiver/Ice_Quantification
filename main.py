@@ -38,7 +38,7 @@ CONFIG["TRAINING"]["DEVICE"] = device
 
 if __name__ == "__main__":
     setup_logger()
-    model = SnowRanker(3, 5).to(device)
+    model = SnowRanker().to(device)
     init_wandb(model)
     data_preparation = DataPreparation()
     train_loader, val_loader, test_loader = data_preparation.create_dataloaders()

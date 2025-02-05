@@ -27,11 +27,11 @@ class Trainer:
         for epoch in range(CONFIG["TRAINING"]["EPOCHS"]):
             self.model.train()
             epoch_loss = torch.tensor(0.0, device=self.device)
-            for lower_img_batch, higher_img_batch, _, _ in train_loader:
-                lower_img_data, higher_img_data = lower_img_batch.to(self.device), higher_img_batch.to(self.device)
+            for lower_img_batch, higher_img_batch, _, _, rank_difference in train_loader:
+                lower_img_data, higher_img_data, rank_difference = lower_img_batch.to(self.device), higher_img_batch.to(self.device), rank_difference.to(self.device)
 
-                lower_img_output, higher_img_output = self.model(lower_img_data), self.model(higher_img_data)
-                loss = self.criterion(lower_img_output, higher_img_output)
+                lower_img_output, higher_img_output = self.model(lower_img_data), self.model(higher_img_data),
+                loss = self.criterion(lower_img_output, higher_img_output, rank_difference)
                 epoch_loss += loss.item()
                 self.optimizer.zero_grad()
                 loss.backward()
@@ -42,10 +42,10 @@ class Trainer:
             self.model.eval()
 
             epoch_val_loss = torch.tensor(0.0, device=self.device)
-            for lower_img_batch_val, higher_img_batch_val, _, _ in val_loader:
-                lower_img_data_val, higher_img_data_val = lower_img_batch_val.to(self.device), higher_img_batch_val.to(self.device)
+            for lower_img_batch_val, higher_img_batch_val, _, _, rank_difference_val in val_loader:
+                lower_img_data_val, higher_img_data_val, rank_difference_val = lower_img_batch_val.to(self.device), higher_img_batch_val.to(self.device), rank_difference_val.to(self.device)
                 lower_img_output_val, higher_img_output_val = self.model(lower_img_data_val), self.model(higher_img_data_val)
-                loss = self.criterion(lower_img_output_val, higher_img_output_val)
+                loss = self.criterion(lower_img_output_val, higher_img_output_val, rank_difference_val)
                 epoch_val_loss += loss.item()
             print(f"Epoch: {epoch}, Loss: {epoch_val_loss.to('cpu').item()/val_length}")
 

@@ -112,11 +112,13 @@ class VariationalAutoEncoder(nn.Module):
 
 class SnowRanker(nn.Module):
 
-    def __init__(self, num_channels, kernel_size):
+    def __init__(self):
         super().__init__()
 
         image_height = CONFIG["TRAINING"]["IMAGE_DIMENSIONS"]["HEIGHT"]
         image_width = CONFIG["TRAINING"]["IMAGE_DIMENSIONS"]["WIDTH"]
+        kernel_size = CONFIG["MODEL"]["SNOWRANKER"]["KERNEL_SIZE"]
+        num_channels = 6 if CONFIG["TRAINING"]["REFERENCE_IMAGE"] else 3
 
         self.layers = nn.ModuleList()
 
@@ -146,10 +148,10 @@ class SnowRanker(nn.Module):
         return x
 
 
-    def loss(self, lower_img_output, higher_img_output):
+    def loss(self, lower_img_output, higher_img_output, rank_difference):
 
         reward_diff = higher_img_output - lower_img_output
-        loss = -torch.mean(F.logsigmoid(reward_diff))
+        loss = -torch.mean(rank_difference * F.logsigmoid(reward_diff))
 
         return loss
 
