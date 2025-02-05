@@ -2,14 +2,13 @@ from torch.utils.data import DataLoader, Subset, random_split, Dataset
 from torchvision import datasets, transforms
 from label_ordering import load_progress_ordered
 from PIL import Image
-
+from utils import create_image_splits
 from config import CONFIG
 
 class PairWiseImageDataset(Dataset):
 
-    def __init__(self, train=True, train_portion=0.8):
+    def __init__(self, ordered_images_subset):
 
-        ordered_images = load_progress_ordered()
         image_height = CONFIG["TRAINING"]["IMAGE_DIMENSIONS"]["HEIGHT"]
         image_width = CONFIG["TRAINING"]["IMAGE_DIMENSIONS"]["WIDTH"]
 
@@ -23,17 +22,14 @@ class PairWiseImageDataset(Dataset):
 
         self.pairs = []
         # Due to ties, images are ordered in groups
-        for idx, lower_group in enumerate(ordered_images):
-            for higher_group in ordered_images[idx + 1:]:
+        for idx, lower_group in enumerate(ordered_images_subset):
+            for higher_group in ordered_images_subset[idx + 1:]:
                 for lower_img_path in lower_group:
                     lower_img = self.transform(Image.open(lower_img_path).convert("RGB"))
                     for higher_img_path in higher_group:
                         higher_img = self.transform(Image.open(higher_img_path).convert("RGB"))
                         # Leftmost always lower
                         self.pairs.append((lower_img, higher_img, lower_img_path, higher_img_path))
-
-        split_idx = int(len(self.pairs) * train_portion)
-        self.pairs = self.pairs[:split_idx] if train else self.pairs[split_idx:]
 
 
     def __len__(self):
@@ -55,15 +51,25 @@ class PairWiseImageDataset(Dataset):
 class DataPreparation:
     def __init__(self) -> None:
         self.batch_size = CONFIG["TRAINING"]["BATCH_SIZE"]
+        self.train_portion = CONFIG["TRAINING"]["TRAIN_PORTION"]
+        self.val_portion = CONFIG["TRAINING"]["VAL_PORTION"]
         #self.root_path = "./data/MNIST"
 
     def create_dataloaders(self) -> (DataLoader, DataLoader, DataLoader):
 
         # TODO: Add disjoint image sets, not only disjoint pair sets
-        train_data = PairWiseImageDataset(train=True, train_portion=0.8)
-        test_data = PairWiseImageDataset(train=False, train_portion=0.8)
+        ordered_images = load_progress_ordered()
+
+        # Separate train, validation and test
+        train_groups, val_groups, test_groups = create_image_splits(ordered_images, self.train_portion, self.val_portion)
 
 
+
+        train_data = PairWiseImageDataset(train_groups)
+        val_data = PairWiseImageDataset(val_groups)
+        test_data = PairWiseImageDataset(test_groups)
+
+        """
         # Separate train into train and validation
         train_portion = CONFIG["TRAINING"]["TRAIN_PORTION"]
         train_size = int(len(train_data) * train_portion)
@@ -71,6 +77,7 @@ class DataPreparation:
 
         # Split the dataset
         train_data, val_data = random_split(train_data, [train_size, val_size])
+        """
 
         print(f"Train data size: {len(train_data)}")
         print(f"Validation data size: {len(val_data)}")

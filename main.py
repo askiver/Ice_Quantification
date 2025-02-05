@@ -48,5 +48,5 @@ if __name__ == "__main__":
     #model.load_state_dict(torch.load("models/model.pth", weights_only=True))
     evaluate_model_accuracy(model, test_loader)
     visualize_predictions(model, test_loader)
-    evaluate_and_sort_results(model)
+    evaluate_and_sort_results(model, test_loader)
     #show_autoencoder_results(model, test_loader)

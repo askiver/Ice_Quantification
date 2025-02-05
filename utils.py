@@ -113,18 +113,20 @@ def evaluate_model_accuracy(model, dataloader):
     total = 0
 
     with torch.no_grad():  # No need for gradient tracking
-        for higher_img, lower_img, _, _ in dataloader:
+        for lower_img, higher_img, _, _ in dataloader:
             # Move images to the correct device
             higher_img = higher_img.to(device)
             lower_img = lower_img.to(device)
 
             # Forward pass: Get model predictions
-            higher_scores = model(higher_img)  # Scores for "higher" images
-            lower_scores = model(lower_img)  # Scores for "lower" images
+            higher_scores = model(higher_img).squeeze()  # Scores for "higher" images
+            lower_scores = model(lower_img).squeeze()  # Scores for "lower" images
 
             # Compare predictions
-            correct += torch.sum(higher_scores > lower_scores).item()
+            correct += (higher_scores > lower_scores).sum().item()
             total += higher_img.size(0)  # Batch size
+
+            print(f"Batch size: {higher_img.size(0)}, Correct: {correct}, Total: {total}")
 
     accuracy = (correct / total) * 100  # Convert to percentage
     print(accuracy)
@@ -134,6 +136,7 @@ def evaluate_model_accuracy(model, dataloader):
 def visualize_predictions(model, dataloader, num_samples=5):
     model.eval()
     device = CONFIG["TRAINING"]["DEVICE"]
+    output_folder = "output/examples.png"
     transform = transforms.ToPILImage()  # Convert tensors to images
 
     all_samples = []  # Store all image pairs for random selection
@@ -157,6 +160,8 @@ def visualize_predictions(model, dataloader, num_samples=5):
     # Plot selected pairs
     fig, axes = plt.subplots(len(selected_samples), 2, figsize=(8, 4 * len(selected_samples)))
 
+    fig.suptitle("Model Predictions \nLeft has more snow", fontsize=16)
+
     if len(selected_samples) == 1:
         axes = [axes]  # Ensure axes is iterable when only one sample is chosen
 
@@ -177,13 +182,22 @@ def visualize_predictions(model, dataloader, num_samples=5):
         axes[i][1].set_title(f"Score: {score_b:.2f}", color="green" if correct else "red")
 
     plt.tight_layout()
-    plt.show()
+
+    plt.savefig(output_folder)
 
 
-def evaluate_and_sort_results(model):
-    image_paths = load_progress_ordered()
-    # flatten list
-    image_paths = [item for sublist in image_paths for item in sublist]
+def evaluate_and_sort_results(model, test_loader=None):
+    if not test_loader:
+        image_paths = load_progress_ordered()
+        # flatten list
+        image_paths = [item for sublist in image_paths for item in sublist]
+
+    else:
+        flattened_set = set()
+        for _, _, lower_img_paths, _ in test_loader:
+            for i in range(len(lower_img_paths)):
+                flattened_set.add(lower_img_paths[i])
+        image_paths = list(flattened_set)
     output_csv = "output/results.csv"
     sorted_folder = "output/sorted_images"
     # Ensure evaluation mode
@@ -235,3 +249,31 @@ def evaluate_and_sort_results(model):
         new_image_path = os.path.join(sorted_folder, new_image_name)
 
         shutil.copy(image_path, new_image_path)  # Copy image to new location
+
+
+def create_image_splits(ordered_images, train_ratio=0.7, val_ratio=0.15):
+
+    if train_ratio + val_ratio >= 1:
+        raise ValueError("Train and validation ratios must sum to less than 1.")
+
+    indices = list(range(len(ordered_images)))
+
+    # Shuffle indices randomly
+    random.shuffle(indices)
+
+    # Compute split sizes
+    train_size = int(len(indices) * train_ratio)
+    val_size = int(len(indices) * val_ratio)
+
+    # Perform random splits
+    train_indices = sorted(indices[:train_size])  # Sort to preserve relative order
+    val_indices = sorted(indices[train_size:train_size + val_size])
+    test_indices = sorted(indices[train_size + val_size:])
+
+    # Use indices to extract groups while maintaining original ordering
+    train_groups = [ordered_images[i] for i in train_indices]
+    val_groups = [ordered_images[i] for i in val_indices]
+    test_groups = [ordered_images[i] for i in test_indices]
+
+    return train_groups, val_groups, test_groups
+
