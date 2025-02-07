@@ -3,6 +3,7 @@ import cv2
 import csv
 from label_images import get_all_image_paths, resize_image
 import sys
+from pathlib import Path
 
 # Define paths
 IMAGES_FOLDER = "images"  # Folder containing the images
@@ -39,7 +40,8 @@ def load_progress_ordered():
             reader = csv.reader(file)
             for row in reader:
                 if row:
-                    ordered_images.append(row)
+                    current_row = [Path(item.replace("\\", "/")).resolve() for item in row]
+                    ordered_images.append(current_row)
 
     return ordered_images
 

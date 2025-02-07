@@ -23,9 +23,8 @@ def setup_logger() -> None:
     )
 
 def init_wandb(model):
-    wandb.init(
-        project="snowranker",
-        entity="askis-ntnu",)
+    wandb.login("never", CONFIG["WANDB"]["API_KEY"])
+    wandb.init(project=CONFIG["WANDB"]["PROJECT"], entity=CONFIG["WANDB"]["USERNAME"])
 
     wandb.config.update(CONFIG)
 

@@ -41,7 +41,7 @@ class PairWiseImageDataset(Dataset):
 
                         rank_difference = (high_rank_index - low_rank_index) / max_rank_index
                         # Leftmost always lower
-                        self.pairs.append((lower_img, higher_img, lower_img_path, higher_img_path, rank_difference))
+                        self.pairs.append((lower_img, higher_img, str(lower_img_path), str(higher_img_path), rank_difference))
 
 
     def __len__(self):

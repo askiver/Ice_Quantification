@@ -2,6 +2,7 @@ import os
 import csv
 import random
 import cv2
+from pathlib import Path
 
 # Keyboard button to image-category
 KEY_TO_CATEGORY = {
@@ -33,7 +34,7 @@ def load_progress():
             reader = csv.reader(file)
             for row in reader:
                 if row:
-                    labeled_images.add(row[0])
+                    labeled_images.add(Path(row[0].replace("\\", "/")).resolve())
     return labeled_images
 
 def get_all_image_paths(folder):

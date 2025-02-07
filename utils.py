@@ -292,7 +292,7 @@ def retrieve_snowless_images(windmill, angle):
             windmill_str = f"WT_{windmill}_SVIV" + str(angle).zfill(2)
 
             if windmill_str in img_path and value == "0":
-                snowless_images.append(img_path)
+                snowless_images.append(Path(img_path.replace("\\", "/")).resolve())
 
     return snowless_images
 
