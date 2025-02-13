@@ -1,6 +1,6 @@
 import csv
 from pathlib import Path
-from config import CONFIG
+from config import get_config
 import matplotlib.pyplot as plt
 import torch
 import torch.nn.functional as f
@@ -11,6 +11,7 @@ import os
 import shutil
 from PIL import Image
 from label_ordering import load_progress_ordered
+import wandb
 
 
 def show_autoencoder_results(
@@ -107,7 +108,8 @@ def show_autoencoder_results(
 
 
 def evaluate_model_accuracy(model, dataloader):
-    device = CONFIG["TRAINING"]["DEVICE"]
+    config = get_config()
+    device = config["TRAINING"]["DEVICE"]
     model.eval()  # Set the model to evaluation mode
     correct = 0
     total = 0
@@ -133,7 +135,8 @@ def evaluate_model_accuracy(model, dataloader):
 
 def visualize_predictions(model, dataloader, num_samples=5):
     model.eval()
-    device = CONFIG["TRAINING"]["DEVICE"]
+    config = get_config()
+    device = config["TRAINING"]["DEVICE"]
     output_folder = "output/examples.png"
     transform = transforms.ToPILImage()  # Convert tensors to images
 
@@ -164,6 +167,11 @@ def visualize_predictions(model, dataloader, num_samples=5):
         axes = [axes]  # Ensure axes is iterable when only one sample is chosen
 
     for i, (img_a, img_b, score_a, score_b) in enumerate(selected_samples):
+        # Revert normalization
+        if config["IMAGE"]["NORMALIZE"]:
+            img_a = img_a * torch.tensor([0.229, 0.224, 0.225]).view(3, 1, 1) + torch.tensor([0.485, 0.456, 0.406]).view(3, 1, 1)
+            img_b = img_b * torch.tensor([0.229, 0.224, 0.225]).view(3, 1, 1) + torch.tensor([0.485, 0.456, 0.406]).view(3, 1, 1)
+
         img_a = transform(img_a[:3, :, :])  # Convert to PIL image, Only retrieve the first 3 channels if reference image has been added
         img_b = transform(img_b[:3, :, :])
 
@@ -183,8 +191,10 @@ def visualize_predictions(model, dataloader, num_samples=5):
 
     plt.savefig(output_folder)
 
+    wandb.log({"examples": [wandb.Image(output_folder)]})
 
-def evaluate_and_sort_results(model, test_loader=None):
+
+def evaluate_and_sort_results(model, transform, test_loader=None):
     if not test_loader:
         image_paths = load_progress_ordered()
         # flatten list
@@ -200,15 +210,12 @@ def evaluate_and_sort_results(model, test_loader=None):
     sorted_folder = "output/sorted_images"
     # Ensure evaluation mode
     model.eval()
-    device = CONFIG["TRAINING"]["DEVICE"]
-    reference_image = CONFIG["TRAINING"]["REFERENCE_IMAGE"]
+    config = get_config()
+    device = config["TRAINING"]["DEVICE"]
+    reference_image = config["IMAGE"]["REFERENCE_IMAGE"]
 
     # Define transformations (ensure consistency with training)
-    transform = transforms.Compose([
-        transforms.Resize((CONFIG["TRAINING"]["IMAGE_DIMENSIONS"]["HEIGHT"],
-                           CONFIG["TRAINING"]["IMAGE_DIMENSIONS"]["WIDTH"])),
-        transforms.ToTensor(),
-    ])
+
 
     image_scores = []
 
@@ -247,6 +254,9 @@ def evaluate_and_sort_results(model, test_loader=None):
     else:
         os.makedirs(sorted_folder)  # Create folder if it doesn't exist
 
+
+    image_list = []
+
     # Copy images into sorted folder with ranking in filename
     for rank, (image_path, score) in enumerate(image_scores, start=1):
         image_name = os.path.basename(image_path)
@@ -254,6 +264,13 @@ def evaluate_and_sort_results(model, test_loader=None):
         new_image_path = os.path.join(sorted_folder, new_image_name)
 
         shutil.copy(image_path, new_image_path)  # Copy image to new location
+
+        # Add image to list for visualization
+        image = Image.open(image_path)
+        image_list.append(wandb.Image(image, caption=f"Rank: {rank}, Score: {score:.2f}"))
+
+    # log images to wandb
+    wandb.log({"sorted_images": image_list})
 
 
 def create_image_splits(ordered_images, train_ratio, val_ratio):
@@ -276,9 +293,9 @@ def create_image_splits(ordered_images, train_ratio, val_ratio):
     test_indices = sorted(indices[train_size + val_size:])
 
     # Use indices to extract groups while maintaining original ordering
-    train_groups = [(ordered_images[i], i) for i in train_indices]
-    val_groups = [(ordered_images[i], i) for i in val_indices]
-    test_groups = [(ordered_images[i], i) for i in test_indices]
+    train_groups = [ordered_images[i] for i in train_indices]
+    val_groups = [ordered_images[i] for i in val_indices]
+    test_groups = [ordered_images[i] for i in test_indices]
 
     return train_groups, val_groups, test_groups
 

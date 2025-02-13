@@ -2,13 +2,14 @@ import torch
 import torch.nn.functional as f
 from torch import nn
 import torch.nn.functional as F
-from config import CONFIG
-
+from config import get_config
+from transformers import ViTFeatureExtractor, ViTForImageClassification
 
 class AutoEncoder(nn.Module):
     def __init__(self) -> None:
         super().__init__()
-        self.device = CONFIG["TRAINING"]["DEVICE"]
+        config = get_config()
+        self.device = config["TRAINING"]["DEVICE"]
         self.act_function = nn.GELU()
 
         self.encoder = nn.Sequential(
@@ -45,7 +46,8 @@ class AutoEncoder(nn.Module):
 class VariationalAutoEncoder(nn.Module):
     def __init__(self) -> None:
         super().__init__()
-        self.device = CONFIG["TRAINING"]["DEVICE"]
+        config = get_config()
+        self.device = config["TRAINING"]["DEVICE"]
         self.act_function = nn.GELU()
         self.latent_dim = 128
 
@@ -114,11 +116,12 @@ class SnowRanker(nn.Module):
 
     def __init__(self):
         super().__init__()
+        config = get_config()
 
-        image_height = CONFIG["TRAINING"]["IMAGE_DIMENSIONS"]["HEIGHT"]
-        image_width = CONFIG["TRAINING"]["IMAGE_DIMENSIONS"]["WIDTH"]
-        kernel_size = CONFIG["MODEL"]["SNOWRANKER"]["KERNEL_SIZE"]
-        num_channels = 6 if CONFIG["TRAINING"]["REFERENCE_IMAGE"] else 3
+        image_height = config["TRAINING"]["IMAGE_DIMENSIONS"]["HEIGHT"]
+        image_width = config["TRAINING"]["IMAGE_DIMENSIONS"]["WIDTH"]
+        kernel_size = config["MODEL"]["SNOWRANKER"]["KERNEL_SIZE"]
+        num_channels = 6 if config["TRAINING"]["REFERENCE_IMAGE"] else 3
 
         self.layers = nn.ModuleList()
 
@@ -154,4 +157,30 @@ class SnowRanker(nn.Module):
         loss = -torch.mean(rank_difference * F.logsigmoid(reward_diff))
 
         return loss
+
+
+class Vision_Transformer(nn.Module):
+    def __init__(self, pretrained_model="google/vit-large-patch32-224-in21k"):
+        super().__init__()
+        self.vit = ViTForImageClassification.from_pretrained(pretrained_model)
+        self.vit.classifier = nn.Sequential(
+            nn.Linear(1024, 512),
+            nn.GELU(),
+            nn.Linear(512, 256),
+            nn.GELU(),
+            nn.Linear(256, 1)
+        )
+
+
+    def forward(self, x):
+        return self.vit(x).logits
+
+
+    def loss(self, lower_img_output, higher_img_output, rank_difference):
+
+        reward_diff = higher_img_output - lower_img_output
+        loss = -torch.mean(rank_difference * F.logsigmoid(reward_diff))
+
+        return loss
+
 

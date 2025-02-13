@@ -1,16 +1,11 @@
 import logging
-
 import torch
-
-from config import CONFIG
+from config import get_config, init_config
 from data_preparation import DataPreparation
-from model import AutoEncoder, VariationalAutoEncoder, SnowRanker
+from model import AutoEncoder, VariationalAutoEncoder, SnowRanker, Vision_Transformer
 from trainer import Trainer
 import wandb
 from utils import show_autoencoder_results, evaluate_model_accuracy, visualize_predictions, evaluate_and_sort_results
-
-# Decide the device dynamically
-device = "cuda" if torch.cuda.is_available() else "cpu"
 
 
 def setup_logger() -> None:
@@ -23,29 +18,41 @@ def setup_logger() -> None:
     )
 
 def init_wandb(model):
-    wandb.login("never", CONFIG["WANDB"]["API_KEY"])
-    wandb.init(project=CONFIG["WANDB"]["PROJECT"], entity=CONFIG["WANDB"]["USERNAME"])
+    config = get_config()
+    wandb.login("never", config["WANDB"]["API_KEY"])
+    wandb.init(project=config["WANDB"]["PROJECT"], entity=config["WANDB"]["USERNAME"])
 
-    wandb.config.update(CONFIG)
+    wandb.config.update(config)
 
     wandb.watch(model)
 
 
-
-# Update the configuration with the runtime-decided device
-CONFIG["TRAINING"]["DEVICE"] = device
-
 if __name__ == "__main__":
     setup_logger()
-    model = SnowRanker().to(device)
+    init_config()
+
+    config = get_config()
+    # Decide the device dynamically
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    # Update the configuration with the runtime-decided device
+    config["TRAINING"]["DEVICE"] = device
+
+    model = Vision_Transformer().to(device)
+    if isinstance(model, Vision_Transformer):
+        config["IMAGE"]["HEIGHT"] = 224
+        config["IMAGE"]["WIDTH"] = 224
+        config["IMAGE"]["CENTER_CROP"] = True
+        config["IMAGE"]["NORMALIZE"] = True
+
     init_wandb(model)
     data_preparation = DataPreparation()
-    train_loader, val_loader, test_loader = data_preparation.create_dataloaders()
+    train_loader, val_loader, test_loader, transform = data_preparation.create_dataloaders()
     trainer = Trainer(model)
-    trainer.train(train_loader, val_loader, save_model=True)
+    best_model = trainer.train(train_loader, val_loader, save_model=True)
     # load model
     #model.load_state_dict(torch.load("models/model.pth", weights_only=True))
-    evaluate_model_accuracy(model, test_loader)
-    visualize_predictions(model, test_loader)
-    evaluate_and_sort_results(model, test_loader)
+    # log accuracy
+    wandb.log({"test accuracy": evaluate_model_accuracy(best_model, test_loader)})
+    visualize_predictions(best_model, test_loader)
+    evaluate_and_sort_results(best_model, transform, test_loader)
     #show_autoencoder_results(model, test_loader)
