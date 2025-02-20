@@ -12,6 +12,7 @@
 - [ ] Include images without snow in the training process
   - [ ] Use separate loss for images with and without snow?
   - [ ] Include these images to create more pairs?
-- [ ] Log everything using weights and biases
+- [x] Log everything using weights and biases
 - [ ] Write evaluation code that uses class-labels for snow amount
 - [ ] Find ways to remove background from the images
+- [ ] Try different models, and share which models are used with supervisor

@@ -117,11 +117,12 @@ class SnowRanker(nn.Module):
     def __init__(self):
         super().__init__()
         config = get_config()
+        self.name = "Self-made CNN"
 
-        image_height = config["TRAINING"]["IMAGE_DIMENSIONS"]["HEIGHT"]
-        image_width = config["TRAINING"]["IMAGE_DIMENSIONS"]["WIDTH"]
+        image_height = config["IMAGE"]["HEIGHT"]
+        image_width = config["IMAGE"]["WIDTH"]
         kernel_size = config["MODEL"]["SNOWRANKER"]["KERNEL_SIZE"]
-        num_channels = 6 if config["TRAINING"]["REFERENCE_IMAGE"] else 3
+        num_channels = 6 if config["IMAGE"]["REFERENCE_IMAGE"] else 3
 
         self.layers = nn.ModuleList()
 
@@ -162,6 +163,7 @@ class SnowRanker(nn.Module):
 class Vision_Transformer(nn.Module):
     def __init__(self, pretrained_model="google/vit-large-patch32-224-in21k"):
         super().__init__()
+        self.name = pretrained_model
         self.vit = ViTForImageClassification.from_pretrained(pretrained_model)
         self.vit.classifier = nn.Sequential(
             nn.Linear(1024, 512),

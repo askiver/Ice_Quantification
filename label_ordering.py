@@ -10,7 +10,7 @@ import random
 # Define paths
 IMAGES_FOLDER = "images"  # Folder containing the images
 OUTPUT_CSV = "image_labels/order_labels.csv"
-SELECTED_ANGLE = "WT_41_SVIV03"
+#SELECTED_ANGLE = "WT_41_SVIV03"
 ANGLES = ["01", "02", "03"]
 WIND_TURBINES = ["07", "21", "41"]
 
@@ -22,22 +22,21 @@ KEY_TO_COMMAND = {
     "q": "quit",
 }
 
-# Only select certain angles to label
-def select_angle():
-    labelled_images = []
+# Only select images that contain snow
+def filter_images():
+    labelled_images = set()
     with open("image_labels/labeled_data.csv", "r") as file:
         reader = csv.reader(file)
         for row in reader:
             img_path, value = Path(row[0]).as_posix(), row[1]
 
-            if SELECTED_ANGLE in img_path:
-                if value != "unknown" and int(value) > 0:
-                    labelled_images.append(img_path)
+            if value != "unknown" and int(value) > 0:
+                labelled_images.add(img_path)
 
     return labelled_images
 
 # Load progress from CSV
-def load_progress_ordered(angle=None):
+def load_progress_ordered(chosen_angle=None):
     """ordered_images = []
         if os.path.exists(OUTPUT_CSV):
             with open(OUTPUT_CSV, "r") as file:
@@ -52,8 +51,14 @@ def load_progress_ordered(angle=None):
     with open("image_labels/order_labels.json", "r") as f:
         rankings = json.load(f)
 
-    if angle:
-        return rankings[angle]
+    for turbine in WIND_TURBINES:
+        for angle in ANGLES:
+            turbine_angle = f"WT_{turbine}_SVIV{angle}"
+            if turbine_angle not in rankings:
+                rankings[turbine_angle] = []
+
+    if chosen_angle:
+        return rankings[chosen_angle]
 
     return rankings
 
@@ -134,23 +139,27 @@ def insert_image(new_image, ordered_images):
     # Insert the new image in the correct position
     ordered_images.insert(low, new_image)
 
+def retrieve_angle(image_path):
+    return image_path[-16:-4]
+
+
 
 # Main function
 def label_orderings():
     # Load already ordered images
     ordered_dict = load_progress_ordered()
 
-    # retrieve relevant list
-    ordered_images = ordered_dict[SELECTED_ANGLE]
 
     # Get all images from the folder
     #images = get_all_image_paths(IMAGES_FOLDER)
-    images = select_angle()
-
-    # shuffle the images
-    random.shuffle(images)
+    images = filter_images()
 
     for idx, new_image in enumerate(images):
+        # Retrieve angle from image path
+        relevant_angle = retrieve_angle(new_image)
+
+        # retrieve relevant list
+        ordered_images = ordered_dict[relevant_angle]
         if new_image in ordered_images:
             continue  # Skip already ordered images
 
