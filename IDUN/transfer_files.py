@@ -7,7 +7,6 @@ PASSWORD = "OddBrochMannsVeg165!"
 REMOTE_PATH = "project"
 
 FILES_TO_TRANSFER = [
-    "test.py",
     "train.slurm",
     "../config.py",
     "../data_preparation.py",

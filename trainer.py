@@ -41,7 +41,7 @@ class Trainer:
                 loss.backward()
                 self.optimizer.step()
             # loss_history.append(epoch_loss)
-            self.logger.info("Epoch: %d, Loss: %.6f", epoch, epoch_loss.to("cpu").item() / train_length)
+            self.logger.info("Epoch: %d, Training Loss: %.6f", epoch, epoch_loss.to("cpu").item() / train_length)
 
             self.model.eval()
 
@@ -51,7 +51,8 @@ class Trainer:
                 lower_img_output_val, higher_img_output_val = self.model(lower_img_data_val), self.model(higher_img_data_val)
                 loss = self.criterion(lower_img_output_val, higher_img_output_val, rank_difference_val)
                 epoch_val_loss += loss.item()
-            print(f"Epoch: {epoch}, Loss: {epoch_val_loss.to('cpu').item()/val_length}")
+            self.logger.info("Epoch: %d, Validation Loss: %.6f", epoch, epoch_val_loss.to("cpu").item() / val_length)
+
             if epoch_val_loss < self.lowest_val_loss:
                 self.lowest_val_loss = epoch_val_loss
                 self.best_model = self.model.state_dict()

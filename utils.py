@@ -169,8 +169,8 @@ def visualize_predictions(model, dataloader, num_samples=5):
     for i, (img_a, img_b, score_a, score_b) in enumerate(selected_samples):
         # Revert normalization
         if config["IMAGE"]["NORMALIZE"]:
-            img_a = img_a * torch.tensor([0.229, 0.224, 0.225]).view(3, 1, 1) + torch.tensor([0.485, 0.456, 0.406]).view(3, 1, 1)
-            img_b = img_b * torch.tensor([0.229, 0.224, 0.225]).view(3, 1, 1) + torch.tensor([0.485, 0.456, 0.406]).view(3, 1, 1)
+            img_a = img_a * torch.tensor([0.5]*3).view(3, 1, 1) + torch.tensor([0.5]*3).view(3, 1, 1)
+            img_b = img_b * torch.tensor([0.5]*3).view(3, 1, 1) + torch.tensor([0.5]*3).view(3, 1, 1)
 
         img_a = transform(img_a[:3, :, :])  # Convert to PIL image, Only retrieve the first 3 channels if reference image has been added
         img_b = transform(img_b[:3, :, :])
@@ -306,7 +306,7 @@ def retrieve_snowless_images(windmill, angle):
         for row in reader:
             img_path, value = row[0], row[1]
 
-            windmill_str = f"WT_{windmill}_SVIV" + str(angle).zfill(2)
+            windmill_str = f"WT_{windmill}_SVIV{angle}"
 
             if windmill_str in img_path and value == "0":
                 snowless_images.append(Path(img_path.replace("\\", "/")).resolve())

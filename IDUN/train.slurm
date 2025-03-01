@@ -1,7 +1,7 @@
 #!/bin/bash
-#SBATCH --job-name="Testing_how_to_use_idun"
-#SBATCH --account=ie-idi
-#SBATCH --time=00-12:00:00
+#SBATCH --job-name="Training ice quantification models"
+#SBATCH --account=share-ie-idi
+#SBATCH --time=00-01:00:00
 #SBATCH --partition=GPUQ
 #SBATCH --mem=128G
 

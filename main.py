@@ -37,8 +37,8 @@ if __name__ == "__main__":
     # Update the configuration with the runtime-decided device
     config["TRAINING"]["DEVICE"] = device
 
-    model = SnowRanker().to(device)
-    #Vision_Transformer().to(device)
+    #model = SnowRanker().to(device)
+    model = Vision_Transformer().to(device)
     if isinstance(model, Vision_Transformer):
         config["IMAGE"]["HEIGHT"] = 224
         config["IMAGE"]["WIDTH"] = 224

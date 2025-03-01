@@ -1,4 +1,4 @@
-from torch.utils.data import DataLoader, Subset, random_split, Dataset
+from torch.utils.data import DataLoader, Subset, random_split, Dataset, ConcatDataset
 from torchvision import datasets, transforms
 from label_ordering import load_progress_ordered
 from PIL import Image
@@ -23,7 +23,7 @@ class PairWiseImageDataset(Dataset):
            *( [transforms.CenterCrop(shortest_side)] if center_crop else []),
             transforms.Resize((image_height, image_width)),
             transforms.ToTensor(),
-            *( [transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])] if normalize else []),
+            *( [transforms.Normalize(mean=[0.5]*3, std=[0.5]*3)] if normalize else []),
         ])
 
         self.pairs = []
@@ -68,19 +68,35 @@ class DataPreparation:
         self.val_portion = config["TRAINING"]["VAL_PORTION"]
 
     def create_dataloaders(self) -> (DataLoader, DataLoader, DataLoader):
+        train_datasets = []
+        val_datasets = []
+        test_datasets = []
 
-        ordered_images = load_progress_ordered("WT_41_SVIV03")
-
-        # Separate train, validation and test
-        train_groups, val_groups, test_groups = create_image_splits(ordered_images, self.train_portion, self.val_portion)
-
-        # load snowless images
-        snowless_images = retrieve_snowless_images(41, "03")
+        for wind_turbine in ["07", "21", "41"]:
+            for angle in ["01", "02", "03"]:
+                ordered_images = load_progress_ordered(f"WT_{wind_turbine}_SVIV{angle}")
 
 
-        train_data = PairWiseImageDataset(train_groups, snowless_images)
-        val_data = PairWiseImageDataset(val_groups, snowless_images)
-        test_data = PairWiseImageDataset(test_groups, snowless_images)
+                # Separate train, validation and test
+                train_groups, val_groups, test_groups = create_image_splits(ordered_images, self.train_portion, self.val_portion)
+
+                # load snowless images
+                snowless_images = retrieve_snowless_images(wind_turbine, angle)
+
+
+                train_data = PairWiseImageDataset(train_groups, snowless_images)
+                val_data = PairWiseImageDataset(val_groups, snowless_images)
+                test_data = PairWiseImageDataset(test_groups, snowless_images)
+
+                train_datasets.append(train_data)
+                val_datasets.append(val_data)
+                test_datasets.append(test_data)
+
+        # Concatenate all datasets
+        transform = train_datasets[0].transform
+        train_data = ConcatDataset(train_datasets)
+        val_data = ConcatDataset(val_datasets)
+        test_data = ConcatDataset(test_datasets)
 
         print(f"Train data size: {len(train_data)}")
         print(f"Validation data size: {len(val_data)}")
@@ -90,4 +106,4 @@ class DataPreparation:
         val_loader = DataLoader(val_data, batch_size=self.batch_size, shuffle=False, drop_last=False)
         test_loader = DataLoader(test_data, batch_size=self.batch_size, shuffle=False)
 
-        return train_loader, val_loader, test_loader, train_data.transform
+        return train_loader, val_loader, test_loader, transform
