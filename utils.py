@@ -1,17 +1,19 @@
 import csv
+import os
+import random
+import shutil
 from pathlib import Path
-from config import get_config
+from torchvision import transforms
 import matplotlib.pyplot as plt
+import pandas as pd
 import torch
 import torch.nn.functional as f
-import torchvision.transforms as transforms
-import random
-import pandas as pd
-import os
-import shutil
+from black.trans import defaultdict
 from PIL import Image
-from label_ordering import load_progress_ordered
+
 import wandb
+from config import get_config
+from label_ordering import load_progress_ordered
 
 
 def show_autoencoder_results(
@@ -169,10 +171,12 @@ def visualize_predictions(model, dataloader, num_samples=5):
     for i, (img_a, img_b, score_a, score_b) in enumerate(selected_samples):
         # Revert normalization
         if config["IMAGE"]["NORMALIZE"]:
-            img_a = img_a * torch.tensor([0.5]*3).view(3, 1, 1) + torch.tensor([0.5]*3).view(3, 1, 1)
-            img_b = img_b * torch.tensor([0.5]*3).view(3, 1, 1) + torch.tensor([0.5]*3).view(3, 1, 1)
+            img_a = img_a * torch.tensor([0.5] * 3).view(3, 1, 1) + torch.tensor([0.5] * 3).view(3, 1, 1)
+            img_b = img_b * torch.tensor([0.5] * 3).view(3, 1, 1) + torch.tensor([0.5] * 3).view(3, 1, 1)
 
-        img_a = transform(img_a[:3, :, :])  # Convert to PIL image, Only retrieve the first 3 channels if reference image has been added
+        img_a = transform(
+            img_a[:3, :, :]
+        )  # Convert to PIL image, Only retrieve the first 3 channels if reference image has been added
         img_b = transform(img_b[:3, :, :])
 
         correct = score_a > score_b  # Check correctness
@@ -216,7 +220,6 @@ def evaluate_and_sort_results(model, transform, test_loader=None):
 
     # Define transformations (ensure consistency with training)
 
-
     image_scores = []
 
     with torch.no_grad():
@@ -254,12 +257,30 @@ def evaluate_and_sort_results(model, transform, test_loader=None):
     else:
         os.makedirs(sorted_folder)  # Create folder if it doesn't exist
 
+    # Normalize scores using Z-score normalization
+
+    mean = torch.mean(torch.tensor([score for _, score in image_scores]))
+    std = torch.std(torch.tensor([score for _, score in image_scores]))
+
+    model_normalized_scores = defaultdict(list)
+
+    # load own scores
+    df = pd.read_csv("image_labels/labeled_data.csv", index_col=0)
 
     image_list = []
 
     # Copy images into sorted folder with ranking in filename
     for rank, (image_path, score) in enumerate(image_scores, start=1):
         image_name = os.path.basename(image_path)
+
+        normalized_score = (score - mean) / std
+
+        turbine_angle = image_name[-16:-4]
+
+        model_normalized_scores[turbine_angle].append(
+            (normalized_score, int(df.loc[image_path.replace("/", "\\")].iloc[0]))
+        )
+
         new_image_name = f"{rank:03d}_{score:.2f}_{image_name}"
         new_image_path = os.path.join(sorted_folder, new_image_name)
 
@@ -267,14 +288,110 @@ def evaluate_and_sort_results(model, transform, test_loader=None):
 
         # Add image to list for visualization
         image = Image.open(image_path)
-        image_list.append(wandb.Image(image, caption=f"Rank: {rank}, Score: {score:.2f}"))
+        image_list.append(
+            wandb.Image(image, caption=f"Rank: {rank}, Score: {score:.2f}, Normalized Score: {normalized_score:.3f}")
+        )
 
     # log images to wandb
     wandb.log({"sorted_images": image_list})
 
+    # Compare scores for different angles
+    compare_scores(model_normalized_scores)
+
+    # Compare scores for different human scores
+    compare_quantities(model_normalized_scores)
+
+
+def compare_scores(score_dict):
+    angles = []
+    means = []
+    stds = []
+    num_images = []
+    for key, value in score_dict.items():
+        angles.append(key)
+        scores = [score for score, _ in value]
+        means.append(torch.mean(torch.tensor(scores)).item())
+        stds.append(torch.std(torch.tensor(scores)).item())
+        num_images.append(len(scores))
+
+    # Create figure with two subplots
+    fig, ax1 = plt.subplots(figsize=(14, 6))  # Adjust figure size
+
+    # Bar plot for number of images
+    ax1.bar(angles, num_images, alpha=0.6, color="blue", label="Number of Images")
+
+    # Secondary y-axis for mean and standard deviation
+    ax2 = ax1.twinx()
+    ax2.errorbar(angles, means, yerr=stds, fmt="o", color="red", label="Mean ± Std Dev")
+
+    # Labels and title
+    ax1.set_xlabel("Angle")
+    ax1.set_ylabel("Number of Images", color="blue")
+    ax2.set_ylabel("Mean Score", color="red")
+    plt.title("Analysis of Image Angles")
+
+    # Rotate x-axis labels properly using plt.setp()
+    plt.xticks(rotation=30, ha="right")
+    plt.setp(ax1.xaxis.get_majorticklabels(), rotation=30, ha="right")  # Explicit rotation
+
+    # Legends
+    ax1.legend(loc="upper left")
+    ax2.legend(loc="upper right")
+
+    # Save plot to file and W&B
+    plt.savefig("output/angle_analysis.png")
+    wandb.log({"angle_analysis": wandb.Image("output/angle_analysis.png")})
+
+
+def compare_quantities(score_dict):
+    human_scores = defaultdict(list)
+
+    for key, value in score_dict.items():
+        for score, human_score in value:
+            human_scores[human_score].append(score)
+
+    human_metrics = []
+    means = []
+    stds = []
+    num_images = []
+
+    for key, value in human_scores.items():
+        scores = value
+        human_metrics.append(key)
+        means.append(torch.mean(torch.tensor(scores)).item())
+        stds.append(torch.std(torch.tensor(scores)).item())
+        num_images.append(len(scores))
+
+        # Create figure with two subplots
+        fig, ax1 = plt.subplots(figsize=(10, 5))  # Adjust figure size
+
+        # Bar plot for number of images
+        ax1.bar(human_metrics, num_images, alpha=0.6, color="blue", label="Number of Images")
+
+        # Secondary y-axis for mean and standard deviation
+        ax2 = ax1.twinx()
+        ax2.errorbar(human_metrics, means, yerr=stds, fmt="o", color="red", label="Mean ± Std Dev")
+
+        # Labels and title
+        ax1.set_xlabel("Angle")
+        ax1.set_ylabel("Number of Images", color="blue")
+        ax2.set_ylabel("Mean Score", color="red")
+        plt.title("Analysis of Image Angles")
+
+        # Rotate x-axis labels properly using plt.setp()
+        plt.xticks(rotation=30, ha="right")
+        plt.setp(ax1.xaxis.get_majorticklabels(), rotation=30, ha="right")  # Explicit rotation
+
+        # Legends
+        ax1.legend(loc="upper left")
+        ax2.legend(loc="upper right")
+
+        # Save plot to file and W&B
+        plt.savefig("output/metric_analysis.png")
+        wandb.log({"metric_analysis": wandb.Image("output/metric_analysis.png")})
+
 
 def create_image_splits(ordered_images, train_ratio, val_ratio):
-
     if train_ratio + val_ratio >= 1:
         raise ValueError("Train and validation ratios must sum to less than 1.")
 
@@ -289,8 +406,8 @@ def create_image_splits(ordered_images, train_ratio, val_ratio):
 
     # Perform random splits
     train_indices = sorted(indices[:train_size])  # Sort to preserve relative order
-    val_indices = sorted(indices[train_size:train_size + val_size])
-    test_indices = sorted(indices[train_size + val_size:])
+    val_indices = sorted(indices[train_size : train_size + val_size])
+    test_indices = sorted(indices[train_size + val_size :])
 
     # Use indices to extract groups while maintaining original ordering
     train_groups = [ordered_images[i] for i in train_indices]
@@ -299,9 +416,10 @@ def create_image_splits(ordered_images, train_ratio, val_ratio):
 
     return train_groups, val_groups, test_groups
 
+
 def retrieve_snowless_images(windmill, angle):
     snowless_images = []
-    with open("image_labels/labeled_data.csv", "r") as file:
+    with open("image_labels/labeled_data.csv") as file:
         reader = csv.reader(file)
         for row in reader:
             img_path, value = row[0], row[1]
@@ -313,7 +431,8 @@ def retrieve_snowless_images(windmill, angle):
 
     return snowless_images
 
-def add_reference_image(original_image, transform, snowless_images=None):
+
+def add_reference_image(original_image:torch.tensor, transform, snowless_images=None):
     if not snowless_images:
         snowless_images = retrieve_snowless_images(41, "03")
     # Choose random image as reference image
@@ -325,5 +444,4 @@ def add_reference_image(original_image, transform, snowless_images=None):
 
 
 if __name__ == "__main__":
-
     pass

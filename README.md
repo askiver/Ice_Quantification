@@ -16,3 +16,5 @@
 - [ ] Write evaluation code that uses class-labels for snow amount
 - [ ] Find ways to remove background from the images
 - [ ] Try different models, and share which models are used with supervisor
+- [ ] Write code to see how different angles compare with regards to human ranked snow amounts
+- [ ] Include examples of images from different wind parks in the W&B reports

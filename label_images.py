@@ -1,8 +1,9 @@
-import os
 import csv
+import os
 import random
-import cv2
 from pathlib import Path
+
+import cv2
 
 # Keyboard button to image-category
 KEY_TO_CATEGORY = {
@@ -19,6 +20,7 @@ KEY_TO_CATEGORY = {
 IMAGES_FOLDER = "images"  # Update with the folder containing your images
 OUTPUT_CSV = "image_labels/labeled_data.csv"
 
+
 def resize_image(img, max_width, max_height):
     height, width = img.shape[:2]
     scaling_factor = min(max_width / width, max_height / height)
@@ -26,29 +28,35 @@ def resize_image(img, max_width, max_height):
     new_height = int(height * scaling_factor)
     return cv2.resize(img, (new_width, new_height))
 
+
 def load_progress():
     """Load progress from the CSV file."""
     labeled_images = set()
     if os.path.exists(OUTPUT_CSV):
-        with open(OUTPUT_CSV, "r") as file:
+        with open(OUTPUT_CSV) as file:
             reader = csv.reader(file)
             for row in reader:
                 if row:
                     labeled_images.add(Path(row[0].replace("\\", "/")).resolve())
     return labeled_images
 
+
 def get_all_image_paths(folder):
     """Get all image paths from the folder and subfolders."""
     image_paths = []
     for root, _, files in os.walk(folder):
         for file in files:
-            if file.lower().endswith(('png', 'jpg', 'jpeg')):
+            if file.lower().endswith(("png", "jpg", "jpeg")):
                 image_paths.append(os.path.join(root, file))
     return sorted(image_paths)
 
-def draw_text_on_image(image, text, position, font=cv2.FONT_HERSHEY_SIMPLEX, font_scale=0.5, color=(255, 255, 255), thickness=1):
+
+def draw_text_on_image(
+    image, text, position, font=cv2.FONT_HERSHEY_SIMPLEX, font_scale=0.5, color=(255, 255, 255), thickness=1
+):
     """Draw text on an image."""
     cv2.putText(image, text, position, font, font_scale, color, thickness, cv2.LINE_AA)
+
 
 def label_images():
     """Label images manually."""
@@ -65,7 +73,6 @@ def label_images():
         writer = csv.writer(file)
 
         for idx, image_path in enumerate(remaining_images):
-
             print(f"Number of images to label:{len(remaining_images) - idx}")
 
             # Load and prepare the image
@@ -115,6 +122,7 @@ def label_images():
 
             # Close the current image window before moving on
             cv2.destroyWindow("Labeling")
+
 
 if __name__ == "__main__":
     label_images()

@@ -25,4 +25,9 @@ indent-style = "space"
 
 [tool.ruff.lint]
 select = ['ALL']
-ignore = ['F401', 'F841', 'COM812', 'ISC001', 'D203', 'D213', 'D100', 'D101', 'D102', 'D103', 'D107']
+ignore = ['F401', 'F841', 'COM812', 'ISC001', 'D203', 'D213', 'D100', 'D101', 'D102', 'D103', 'D107', 'S311']
+
+[dependency-groups]
+dev = [
+    "ruff>=0.9.9",
+]

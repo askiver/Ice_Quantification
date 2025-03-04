@@ -1,9 +1,11 @@
 import torch
+import torch.nn.functional as F
 import torch.nn.functional as f
 from torch import nn
-import torch.nn.functional as F
-from config import get_config
 from transformers import ViTFeatureExtractor, ViTForImageClassification
+
+from config import get_config
+
 
 class AutoEncoder(nn.Module):
     def __init__(self) -> None:
@@ -100,8 +102,9 @@ class VariationalAutoEncoder(nn.Module):
         reconstructed_x = self.decode(z)
         return reconstructed_x, mu, log_var
 
-    def loss(self, reconstructed_x: torch.tensor, mu: torch.tensor, log_var: torch.tensor, x: torch.tensor) \
-            -> torch.tensor:
+    def loss(
+        self, reconstructed_x: torch.tensor, mu: torch.tensor, log_var: torch.tensor, x: torch.tensor
+    ) -> torch.tensor:
         # Reconstruction loss: Pixel-wise binary cross-entropy
         recon_loss = f.binary_cross_entropy(reconstructed_x, x, reduction="sum")
 
@@ -111,9 +114,7 @@ class VariationalAutoEncoder(nn.Module):
         return recon_loss + kl_divergence
 
 
-
 class SnowRanker(nn.Module):
-
     def __init__(self):
         super().__init__()
         config = get_config()
@@ -128,12 +129,12 @@ class SnowRanker(nn.Module):
 
         # Add cnn layers
         for _ in range(3):
-            self.layers.append(nn.Conv2d(num_channels,num_channels*3, kernel_size, 1, kernel_size // 2))
+            self.layers.append(nn.Conv2d(num_channels, num_channels * 3, kernel_size, 1, kernel_size // 2))
             self.layers.append(nn.MaxPool2d(2, 2))
-            self.layers.append(nn.BatchNorm2d(num_channels*3))
+            self.layers.append(nn.BatchNorm2d(num_channels * 3))
             self.layers.append(nn.GELU())
             num_channels *= 3
-            image_height, image_width = image_height//2, image_width//2
+            image_height, image_width = image_height // 2, image_width // 2
 
         self.layers.append(nn.Flatten())
         # Add fc layers
@@ -143,17 +144,14 @@ class SnowRanker(nn.Module):
         self.layers.append(nn.Linear(200, 20))
         self.layers.append(nn.GELU())
         self.layers.append(nn.Linear(20, 1))
-        #self.layers.append(nn.ReLU())
-
+        # self.layers.append(nn.ReLU())
 
     def forward(self, x):
         for layer in self.layers:
             x = layer(x)
         return x
 
-
     def loss(self, lower_img_output, higher_img_output, rank_difference):
-
         reward_diff = higher_img_output - lower_img_output
         loss = -torch.mean(rank_difference * F.logsigmoid(reward_diff))
 
@@ -165,24 +163,16 @@ class Vision_Transformer(nn.Module):
         super().__init__()
         self.name = pretrained_model
         self.vit = ViTForImageClassification.from_pretrained(pretrained_model)
+        self.hidden_size = self.vit.config.hidden_size
         self.vit.classifier = nn.Sequential(
-            nn.Linear(1024, 512),
-            nn.GELU(),
-            nn.Linear(512, 256),
-            nn.GELU(),
-            nn.Linear(256, 1)
+            nn.Linear(self.hidden_size, 512), nn.GELU(), nn.Linear(512, 256), nn.GELU(), nn.Linear(256, 1)
         )
-
 
     def forward(self, x):
         return self.vit(x).logits
 
-
     def loss(self, lower_img_output, higher_img_output, rank_difference):
-
         reward_diff = higher_img_output - lower_img_output
         loss = -torch.mean(rank_difference * F.logsigmoid(reward_diff))
 
         return loss
-
-

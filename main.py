@@ -1,11 +1,15 @@
 import logging
+import random
+import socket
+
 import torch
+
+import wandb
 from config import get_config, init_config
 from data_preparation import DataPreparation
-from model import AutoEncoder, VariationalAutoEncoder, SnowRanker, Vision_Transformer
+from model import AutoEncoder, SnowRanker, VariationalAutoEncoder, Vision_Transformer
 from trainer import Trainer
-import wandb
-from utils import show_autoencoder_results, evaluate_model_accuracy, visualize_predictions, evaluate_and_sort_results
+from utils import evaluate_and_sort_results, evaluate_model_accuracy, show_autoencoder_results, visualize_predictions
 
 
 def setup_logger() -> None:
@@ -14,8 +18,9 @@ def setup_logger() -> None:
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",  # Format for the log messages
         handlers=[
             logging.StreamHandler()  # This ensures output goes to the console (stdout)
-        ]
+        ],
     )
+
 
 def init_wandb(model):
     config = get_config()
@@ -25,6 +30,13 @@ def init_wandb(model):
     wandb.config.update(config)
 
     wandb.watch(model)
+
+
+def set_seeds():
+    torch.manual_seed(0)
+    random.seed(0)
+    # torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = True
 
 
 if __name__ == "__main__":
@@ -37,8 +49,9 @@ if __name__ == "__main__":
     # Update the configuration with the runtime-decided device
     config["TRAINING"]["DEVICE"] = device
 
-    #model = SnowRanker().to(device)
-    model = Vision_Transformer().to(device)
+    # model = SnowRanker().to(device)
+    vit_model = config["MODEL"]["VIT"]["PRE_TRAINED"]
+    model = Vision_Transformer(pretrained_model=vit_model).to(device)
     if isinstance(model, Vision_Transformer):
         config["IMAGE"]["HEIGHT"] = 224
         config["IMAGE"]["WIDTH"] = 224
@@ -48,6 +61,8 @@ if __name__ == "__main__":
     run_table.add_data("Device", device)
     # Add model name to the table
     run_table.add_data("Model Name", model.name)
+    # Add pc name to the table
+    run_table.add_data("PC Name", socket.gethostname())
 
     init_wandb(model)
     data_preparation = DataPreparation()
@@ -55,11 +70,12 @@ if __name__ == "__main__":
     trainer = Trainer(model)
     best_model = trainer.train(train_loader, val_loader, save_model=True)
     # load model
-    #model.load_state_dict(torch.load("models/model.pth", weights_only=True))
+    # model.load_state_dict(torch.load("models/model.pth", weights_only=True))
     # log test accuracy
     run_table.add_data("Test Accuracy", str(evaluate_model_accuracy(best_model, test_loader)))
     wandb.log({"Test Accuracy Table": run_table})
 
     visualize_predictions(best_model, test_loader)
     evaluate_and_sort_results(best_model, transform, test_loader)
-    #show_autoencoder_results(model, test_loader)
+    # show_autoencoder_results(model, test_loader)
+    wandb.finish()

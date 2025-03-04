@@ -22,6 +22,7 @@ FILES_TO_TRANSFER = [
     "../pyproject.toml",
 ]
 
+
 def transfer_files_scp(files, remote_host, username, password, remote_path):
     try:
         ssh = SSHClient()
@@ -39,6 +40,7 @@ def transfer_files_scp(files, remote_host, username, password, remote_path):
 
     except Exception as e:
         print(f"Error: {e}")
+
 
 # Call the function
 transfer_files_scp(FILES_TO_TRANSFER, REMOTE_HOST, USERNAME, PASSWORD, REMOTE_PATH)

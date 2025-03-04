@@ -1,12 +1,13 @@
-from torch.utils.data import DataLoader, Subset, random_split, Dataset, ConcatDataset
-from torchvision import datasets, transforms
-from label_ordering import load_progress_ordered
 from PIL import Image
-from utils import create_image_splits, retrieve_snowless_images, add_reference_image
+from torch.utils.data import ConcatDataset, DataLoader, Dataset, Subset, random_split
+from torchvision import datasets, transforms
+
 from config import get_config
+from label_ordering import load_progress_ordered
+from utils import add_reference_image, create_image_splits, retrieve_snowless_images
+
 
 class PairWiseImageDataset(Dataset):
-
     def __init__(self, ordered_images_subset, snowless_images=None):
         config = get_config()
 
@@ -19,12 +20,14 @@ class PairWiseImageDataset(Dataset):
 
         # Generate ordered image pairs
 
-        self.transform = transforms.Compose([
-           *( [transforms.CenterCrop(shortest_side)] if center_crop else []),
-            transforms.Resize((image_height, image_width)),
-            transforms.ToTensor(),
-            *( [transforms.Normalize(mean=[0.5]*3, std=[0.5]*3)] if normalize else []),
-        ])
+        self.transform = transforms.Compose(
+            [
+                *([transforms.CenterCrop(shortest_side)] if center_crop else []),
+                transforms.Resize((image_height, image_width)),
+                transforms.ToTensor(),
+                *([transforms.Normalize(mean=[0.5] * 3, std=[0.5] * 3)] if normalize else []),
+            ]
+        )
 
         self.pairs = []
         max_rank_index = len(ordered_images_subset) - 1
@@ -34,22 +37,21 @@ class PairWiseImageDataset(Dataset):
             if add_reference:
                 lower_img = add_reference_image(lower_img, self.transform, snowless_images)
 
-            for high_idx, higher_image_path in enumerate(ordered_images_subset[low_idx + 1:]):
+            for high_idx, higher_image_path in enumerate(ordered_images_subset[low_idx + 1 :]):
                 higher_img = self.transform(Image.open(higher_image_path).convert("RGB"))
                 if add_reference:
                     higher_img = add_reference_image(higher_img, self.transform, snowless_images)
                 rank_difference = high_idx / max_rank_index
                 # Leftmost always lower
                 self.pairs.append(
-                    (lower_img, higher_img, str(lower_image_path), str(higher_image_path), rank_difference))
-
+                    (lower_img, higher_img, str(lower_image_path), str(higher_image_path), rank_difference)
+                )
 
     def __len__(self):
         return len(self.pairs)
 
     def __getitem__(self, idx):
-        """
-        lower_img_path, higher_img_path = self.pairs[idx]
+        """lower_img_path, higher_img_path = self.pairs[idx]
 
         # Load and transform images on-the-fly
         lower_img = self.transform(Image.open(lower_img_path).convert("RGB"))
@@ -76,13 +78,13 @@ class DataPreparation:
             for angle in ["01", "02", "03"]:
                 ordered_images = load_progress_ordered(f"WT_{wind_turbine}_SVIV{angle}")
 
-
                 # Separate train, validation and test
-                train_groups, val_groups, test_groups = create_image_splits(ordered_images, self.train_portion, self.val_portion)
+                train_groups, val_groups, test_groups = create_image_splits(
+                    ordered_images, self.train_portion, self.val_portion
+                )
 
                 # load snowless images
                 snowless_images = retrieve_snowless_images(wind_turbine, angle)
-
 
                 train_data = PairWiseImageDataset(train_groups, snowless_images)
                 val_data = PairWiseImageDataset(val_groups, snowless_images)
@@ -104,6 +106,6 @@ class DataPreparation:
 
         train_loader = DataLoader(train_data, batch_size=self.batch_size, shuffle=True, drop_last=False)
         val_loader = DataLoader(val_data, batch_size=self.batch_size, shuffle=False, drop_last=False)
-        test_loader = DataLoader(test_data, batch_size=self.batch_size, shuffle=False)
+        test_loader = DataLoader(test_data, batch_size=self.batch_size, shuffle=False, drop_last=False)
 
         return train_loader, val_loader, test_loader, transform

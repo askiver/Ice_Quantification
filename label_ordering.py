@@ -1,16 +1,18 @@
-import os
-import cv2
 import csv
-from label_images import get_all_image_paths, resize_image
-import sys
 import json
-from pathlib import Path
+import os
 import random
+import sys
+from pathlib import Path
+
+import cv2
+
+from label_images import get_all_image_paths, resize_image
 
 # Define paths
 IMAGES_FOLDER = "images"  # Folder containing the images
 OUTPUT_CSV = "image_labels/order_labels.csv"
-#SELECTED_ANGLE = "WT_41_SVIV03"
+# SELECTED_ANGLE = "WT_41_SVIV03"
 ANGLES = ["01", "02", "03"]
 WIND_TURBINES = ["07", "21", "41"]
 
@@ -22,10 +24,11 @@ KEY_TO_COMMAND = {
     "q": "quit",
 }
 
+
 # Only select images that contain snow
 def filter_images():
     labelled_images = set()
-    with open("image_labels/labeled_data.csv", "r") as file:
+    with open("image_labels/labeled_data.csv") as file:
         reader = csv.reader(file)
         for row in reader:
             img_path, value = Path(row[0]).as_posix(), row[1]
@@ -35,20 +38,19 @@ def filter_images():
 
     return labelled_images
 
+
 # Load progress from CSV
 def load_progress_ordered(chosen_angle=None):
     """ordered_images = []
-        if os.path.exists(OUTPUT_CSV):
-            with open(OUTPUT_CSV, "r") as file:
-                reader = csv.reader(file)
-                for row in reader:
-                    if row:
-                        current_row = [Path(item.replace("\\", "/")).resolve() for item in row]
-                        ordered_images.append(current_row)
-        """
-
-
-    with open("image_labels/order_labels.json", "r") as f:
+    if os.path.exists(OUTPUT_CSV):
+        with open(OUTPUT_CSV, "r") as file:
+            reader = csv.reader(file)
+            for row in reader:
+                if row:
+                    current_row = [Path(item.replace("\\", "/")).resolve() for item in row]
+                    ordered_images.append(current_row)
+    """
+    with open("image_labels/order_labels.json") as f:
         rankings = json.load(f)
 
     for turbine in WIND_TURBINES:
@@ -63,19 +65,17 @@ def load_progress_ordered(chosen_angle=None):
     return rankings
 
 
-
 # Save progress to CSV
 def save_progress(ordered_images):
+    """With open(OUTPUT_CSV, "w", newline="") as file:
+    writer = csv.writer(file)
+    # Convert tuples to strings for saving
+    for item in ordered_images:
+        writer.writerow(item)
     """
-    with open(OUTPUT_CSV, "w", newline="") as file:
-        writer = csv.writer(file)
-        # Convert tuples to strings for saving
-        for item in ordered_images:
-            writer.writerow(item)
-            """
-
     with open("image_labels/order_labels.json", "w") as f:
         json.dump(ordered_images, f, indent=4)
+
 
 # Display images and get user input
 def compare_images(image_a, image_b):
@@ -95,14 +95,13 @@ def compare_images(image_a, image_b):
         key = cv2.waitKey(0)
         key_char = chr(key & 0xFF)
 
-        if key_char in KEY_TO_COMMAND.keys():
+        if key_char in KEY_TO_COMMAND:
             return KEY_TO_COMMAND[key_char]
-        else:
-            print(f"Invalid input. Please press one of {KEY_TO_COMMAND.keys()}.")
+        print(f"Invalid input. Please press one of {KEY_TO_COMMAND.keys()}.")
+
 
 # Insert a new image into the ordered list
 def insert_image(new_image, ordered_images):
-
     if not ordered_images:
         ordered_images.append(new_image)
         return
@@ -139,9 +138,9 @@ def insert_image(new_image, ordered_images):
     # Insert the new image in the correct position
     ordered_images.insert(low, new_image)
 
+
 def retrieve_angle(image_path):
     return image_path[-16:-4]
-
 
 
 # Main function
@@ -149,9 +148,8 @@ def label_orderings():
     # Load already ordered images
     ordered_dict = load_progress_ordered()
 
-
     # Get all images from the folder
-    #images = get_all_image_paths(IMAGES_FOLDER)
+    # images = get_all_image_paths(IMAGES_FOLDER)
     images = filter_images()
 
     for idx, new_image in enumerate(images):
@@ -173,6 +171,7 @@ def label_orderings():
 
     print("Final Ordered List:")
     print(ordered_images)
+
 
 if __name__ == "__main__":
     label_orderings()
