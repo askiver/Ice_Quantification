@@ -1,3 +1,4 @@
+image_path,label
 images\WT-41\2024-03-04_16_00_WT_41_SVIV03.jpg,0
 images\WT-07\2024-03-28_08_00_WT_07_SVIV03.jpg,0
 images\WT-41\2024-02-28_08_00_WT_41_SVIV01.jpg,1
@@ -2376,7 +2377,6 @@ images\WT-07\2024-03-13_09_00_WT_07_SVIV03.jpg,unknown
 images\WT-07\2024-03-19_07_01_WT_07_SVIV02.jpg,0
 images\WT-21\2024-04-15_04_00_WT_21_SVIV03.jpg,unknown
 images\WT-41\2024-02-23_19_00_WT_41_SVIV02.jpg,unknown
-images\WT-07\2024-02-13_14_00_WT_07_Preset03.jpg,0
 images\WT-21\2024-02-15_19_00_WT_21_SVIV01.jpg,unknown
 images\WT-41\2024-03-11_03_00_WT_41_SVIV03.jpg,0
 images\WT-41\2024-02-29_22_00_WT_41_SVIV01.jpg,unknown
@@ -2548,7 +2548,6 @@ images\WT-21\2024-03-23_16_00_WT_21_SVIV02.jpg,1
 images\WT-41\2024-04-19_00_00_WT_41_SVIV01.jpg,unknown
 images\WT-21\2024-03-29_19_00_WT_21_SVIV03.jpg,0
 images\WT-41\2024-03-10_21_00_WT_41_SVIV03.jpg,0
-images\WT-07\2024-02-13_14_00_WT_07_Preset02.jpg,0
 images\WT-21\2024-03-22_20_00_WT_21_SVIV03.jpg,unknown
 images\WT-21\2024-02-20_10_00_WT_21_SVIV03.jpg,0
 images\WT-21\2024-03-08_10_00_WT_21_SVIV03.jpg,0

@@ -171,8 +171,53 @@ class Vision_Transformer(nn.Module):
     def forward(self, x):
         return self.vit(x).logits
 
-    def loss(self, lower_img_output, higher_img_output, rank_difference):
+    def pair_loss(self, lower_img_output, higher_img_output, rank_difference):
         reward_diff = higher_img_output - lower_img_output
         loss = -torch.mean(rank_difference * F.logsigmoid(reward_diff))
 
         return loss
+
+    def ListNet_loss(self, predictions, true_ranks, alpha=1.0):
+        exp_ranks = torch.exp(-alpha * true_ranks.float())
+        p_true = exp_ranks / exp_ranks.sum()
+
+        # Convert predicted scores to distribution P_pred via softmax
+        p_pred = F.softmax(predictions, dim=0)
+
+        # Cross-entropy
+        loss = -torch.sum(p_true * torch.log(p_pred + 1e-12))  # +1e-12 to avoid log(0)
+        return loss
+
+    def list_mle_loss(self, pred_scores: torch.Tensor, true_ranks: torch.Tensor) -> torch.Tensor:
+        """
+            Computes the ListMLE loss for a single list.
+
+            Args:
+                pred_scores (torch.Tensor): shape (N,) - predicted scores for N items.
+                true_ranks (torch.Tensor): shape (N,) - ground-truth ranks for these items,
+                    where lower rank = better (e.g., rank=1 is top item).
+
+            Returns:
+                torch.Tensor: scalar loss (negative log-likelihood).
+            """
+
+        # 1) Sequential factorization
+        #    - sum_{i=1..N} [ s_{pi(i)} - log \sum_{j=i..N} exp(s_{pi(j)}) ]
+        N = pred_scores.shape[0]
+        nll = torch.tensor(0.0, device=pred_scores.device)
+        for i in range(N):
+            # partial subset from i..N-1
+            subset_scores = pred_scores[i:]  # shape (N-i,)
+            log_sum_exp = torch.logsumexp(subset_scores, dim=0)
+            nll += (pred_scores[i] - log_sum_exp)
+
+        # 3) Negative log-likelihood
+        return -nll / N
+
+    def get_correct_loss(self, loss_name):
+        if loss_name == "ListNet":
+            return self.ListNet_loss
+        elif loss_name == "ListMLE":
+            return self.list_mle_loss
+        else:
+            return self.pair_loss

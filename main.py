@@ -9,7 +9,8 @@ from config import get_config, init_config
 from data_preparation import DataPreparation
 from model import AutoEncoder, SnowRanker, VariationalAutoEncoder, Vision_Transformer
 from trainer import Trainer
-from utils import evaluate_and_sort_results, evaluate_model_accuracy, show_autoencoder_results, visualize_predictions
+from utils import evaluate_and_sort_results, evaluate_model_accuracy, show_autoencoder_results, visualize_predictions, \
+    show_label_counts
 
 
 def setup_logger() -> None:
@@ -36,7 +37,7 @@ def set_seeds():
     torch.manual_seed(0)
     random.seed(0)
     # torch.backends.cudnn.deterministic = True
-    torch.backends.cudnn.benchmark = True
+    #torch.backends.cudnn.benchmark = True
 
 
 if __name__ == "__main__":
@@ -58,6 +59,9 @@ if __name__ == "__main__":
         config["IMAGE"]["CENTER_CROP"] = True
         config["IMAGE"]["NORMALIZE"] = True
 
+    if config["TRAINING"]["LOSS"] != "PairWise":
+        config["TRAINING"]["BATCH_SIZE"] = 1
+
     run_table.add_data("Device", device)
     # Add model name to the table
     run_table.add_data("Model Name", model.name)
@@ -77,5 +81,6 @@ if __name__ == "__main__":
 
     visualize_predictions(best_model, test_loader)
     evaluate_and_sort_results(best_model, transform, test_loader)
-    # show_autoencoder_results(model, test_loader)
+    #show_autoencoder_results(model, test_loader)
+    show_label_counts()
     wandb.finish()

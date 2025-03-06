@@ -1,3 +1,4 @@
+import torch
 from PIL import Image
 from torch.utils.data import ConcatDataset, DataLoader, Dataset, Subset, random_split
 from torchvision import datasets, transforms
@@ -6,11 +7,54 @@ from config import get_config
 from label_ordering import load_progress_ordered
 from utils import add_reference_image, create_image_splits, retrieve_snowless_images
 
+class ListImageDataset(Dataset):
+    def __init__(self, ordered_images_subset):
+        config = get_config()
+        image_height = config["IMAGE"]["HEIGHT"]
+        image_width = config["IMAGE"]["WIDTH"]
+        center_crop = config["IMAGE"]["CENTER_CROP"]
+        normalize = config["IMAGE"]["NORMALIZE"]
+        shortest_side = 1080
+
+        self.transform = transforms.Compose(
+            [
+                *([transforms.CenterCrop(shortest_side)] if center_crop else []),
+                transforms.Resize((image_height, image_width)),
+                transforms.ToTensor(),
+                *([transforms.Normalize(mean=[0.5] * 3, std=[0.5] * 3)] if normalize else []),
+            ]
+        )
+
+        images = []
+        image_ranks = []
+        image_paths = []
+        for idx, image_path in enumerate(reversed(ordered_images_subset)):
+            img = self.transform(Image.open(image_path).convert("RGB"))
+            images.append(img)
+            image_ranks.append(idx)
+            image_paths.append(image_path)
+
+        # Stack images into a single tensor
+        images_tensor = torch.stack(images, dim=0)
+
+        # Convert ranks to tensor
+        image_ranks = torch.tensor(image_ranks, dtype=torch.float32)
+
+        self.data = [(images_tensor, image_ranks, image_paths)]
+
+    def __len__(self):
+        return len(self.data)
+
+
+    def __getitem__(self, idx):
+        return self.data[idx]
+
+
+
 
 class PairWiseImageDataset(Dataset):
     def __init__(self, ordered_images_subset, snowless_images=None):
         config = get_config()
-
         image_height = config["IMAGE"]["HEIGHT"]
         image_width = config["IMAGE"]["WIDTH"]
         add_reference = config["IMAGE"]["REFERENCE_IMAGE"]
@@ -30,6 +74,7 @@ class PairWiseImageDataset(Dataset):
         )
 
         self.pairs = []
+
         max_rank_index = len(ordered_images_subset) - 1
         # Due to ties, images are ordered in groups
         for low_idx, lower_image_path in enumerate(ordered_images_subset):
@@ -70,6 +115,8 @@ class DataPreparation:
         self.val_portion = config["TRAINING"]["VAL_PORTION"]
 
     def create_dataloaders(self) -> (DataLoader, DataLoader, DataLoader):
+        config = get_config()
+
         train_datasets = []
         val_datasets = []
         test_datasets = []
@@ -84,11 +131,13 @@ class DataPreparation:
                 )
 
                 # load snowless images
-                snowless_images = retrieve_snowless_images(wind_turbine, angle)
+                #snowless_images = retrieve_snowless_images(wind_turbine, angle)
 
-                train_data = PairWiseImageDataset(train_groups, snowless_images)
-                val_data = PairWiseImageDataset(val_groups, snowless_images)
-                test_data = PairWiseImageDataset(test_groups, snowless_images)
+                dataset_class = ListImageDataset if config["TRAINING"]["LOSS"] != "PairWise" else PairWiseImageDataset
+
+                train_data = dataset_class(train_groups)
+                val_data = dataset_class(val_groups)
+                test_data = PairWiseImageDataset(test_groups)
 
                 train_datasets.append(train_data)
                 val_datasets.append(val_data)

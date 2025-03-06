@@ -1,10 +1,14 @@
 import csv
 import os
 import random
+import re
 import shutil
 from pathlib import Path
+
+import numpy as np
 from torchvision import transforms
 import matplotlib.pyplot as plt
+from matplotlib.ticker import MaxNLocator
 import pandas as pd
 import torch
 import torch.nn.functional as f
@@ -303,13 +307,12 @@ def evaluate_and_sort_results(model, transform, test_loader=None):
 
 
 def compare_scores(score_dict):
-    angles = []
+    angles = sorted(score_dict.keys())
     means = []
     stds = []
     num_images = []
-    for key, value in score_dict.items():
-        angles.append(key)
-        scores = [score for score, _ in value]
+    for angle, score_pairs in score_dict.items():
+        scores = [score for score, _ in score_pairs]
         means.append(torch.mean(torch.tensor(scores)).item())
         stds.append(torch.std(torch.tensor(scores)).item())
         num_images.append(len(scores))
@@ -347,48 +350,47 @@ def compare_quantities(score_dict):
     human_scores = defaultdict(list)
 
     for key, value in score_dict.items():
-        for score, human_score in value:
-            human_scores[human_score].append(score)
+        for model_score, human_score in value:
+            human_scores[human_score].append(model_score)
 
-    human_metrics = []
+    labels_list = sorted(human_scores.keys())
     means = []
     stds = []
     num_images = []
 
-    for key, value in human_scores.items():
-        scores = value
-        human_metrics.append(key)
-        means.append(torch.mean(torch.tensor(scores)).item())
-        stds.append(torch.std(torch.tensor(scores)).item())
-        num_images.append(len(scores))
+    for label in labels_list:
+        scores_tensor = torch.tensor(human_scores[label], dtype=torch.float)
+        num_images.append(len(scores_tensor))
+        means.append(scores_tensor.mean().item())
+        stds.append(scores_tensor.std().item())
 
-        # Create figure with two subplots
-        fig, ax1 = plt.subplots(figsize=(10, 5))  # Adjust figure size
+    # 3. Create the figure & axes
+    fig, ax1 = plt.subplots(figsize=(10, 5))
 
-        # Bar plot for number of images
-        ax1.bar(human_metrics, num_images, alpha=0.6, color="blue", label="Number of Images")
+    # Plot the bar chart (left y-axis)
+    ax1.bar(labels_list, num_images, alpha=0.6, color="blue", label="Number of Images")
 
-        # Secondary y-axis for mean and standard deviation
-        ax2 = ax1.twinx()
-        ax2.errorbar(human_metrics, means, yerr=stds, fmt="o", color="red", label="Mean ± Std Dev")
+    # Create a secondary y-axis for mean ± std dev
+    ax2 = ax1.twinx()
+    ax2.errorbar(labels_list, means, yerr=stds, fmt="o", color="red", label="Mean ± Std Dev")
 
-        # Labels and title
-        ax1.set_xlabel("Angle")
-        ax1.set_ylabel("Number of Images", color="blue")
-        ax2.set_ylabel("Mean Score", color="red")
-        plt.title("Analysis of Image Angles")
+    # 4. Labeling & Titles
+    ax1.set_xlabel("Human Label")  # It's not an angle now, but the label category
+    ax1.set_ylabel("Number of Images", color="blue")
+    ax2.set_ylabel("Mean Model Score", color="red")
+    plt.title("Analysis of Human Label vs. Model Score")
 
-        # Rotate x-axis labels properly using plt.setp()
-        plt.xticks(rotation=30, ha="right")
-        plt.setp(ax1.xaxis.get_majorticklabels(), rotation=30, ha="right")  # Explicit rotation
+    # Rotate x-axis labels for better readability
+    plt.xticks(rotation=30, ha="right")
 
-        # Legends
-        ax1.legend(loc="upper left")
-        ax2.legend(loc="upper right")
+    # Combine legends
+    ax1.legend(loc="upper left")
+    ax2.legend(loc="upper right")
 
-        # Save plot to file and W&B
-        plt.savefig("output/metric_analysis.png")
-        wandb.log({"metric_analysis": wandb.Image("output/metric_analysis.png")})
+    # 5. Save the plot & log to W&B
+    plt.tight_layout()
+    plt.savefig("output/metric_analysis.png")
+    wandb.log({"metric_analysis": wandb.Image("output/metric_analysis.png")})
 
 
 def create_image_splits(ordered_images, train_ratio, val_ratio):
@@ -441,6 +443,56 @@ def add_reference_image(original_image:torch.tensor, transform, snowless_images=
 
     # combine images
     return torch.cat([original_image, reference_image], 0)
+
+def show_label_counts():
+    # Load labeled data
+    labeled_images = pd.read_csv("image_labels/labeled_data.csv")
+
+    labeled_images["angle"] = labeled_images["image_path"].apply(extract_angle)
+    angles = sorted(labeled_images["angle"].unique())
+
+    counts = labeled_images.groupby(["angle", "label"]).size().unstack(fill_value=0)
+
+
+    labels = counts.columns.tolist()  # e.g. ["catA", "catB", "catC", "catD"]
+    x = np.arange(len(angles))  # positions for angles
+    width = 0.15
+
+    fig, ax = plt.subplots(figsize=(10, 5))
+
+    # Plot each category
+    for i, lbl in enumerate(labels):
+        # bar positions offset by i * width
+        bar_positions = x + i * width
+        bar_values = counts[lbl]
+
+        # Create bars
+        bars = ax.bar(bar_positions, bar_values, width, label=lbl)
+
+        # Annotate each bar with its value
+        for pos, val in zip(bar_positions, bar_values):
+            ax.text(pos, val + 0.05, str(val), ha="center", va="bottom", fontsize=8)
+
+    # Configure x-axis
+    ax.set_xticks(x + width * (len(labels) - 1) / 2)
+    ax.set_xticklabels(angles, rotation=45, ha="right")
+
+    ax.set_xlabel("Angle")
+    ax.set_ylabel("Count of Images")
+    ax.yaxis.set_major_locator(MaxNLocator(integer=True))
+    ax.set_title("Label Counts per Angle (with annotation)")
+    ax.legend()
+
+    plt.tight_layout()
+
+    # Save plot to file and W&B
+    plt.savefig("output/label_counts.png")
+    wandb.log({"label_counts": wandb.Image("output/label_counts.png")})
+
+
+def extract_angle(path):
+    match = re.search(r"(WT_\d+_SVIV\d+)", path)
+    return match.group(1) if match else "Unknown"
 
 
 if __name__ == "__main__":
