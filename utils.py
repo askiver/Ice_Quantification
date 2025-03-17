@@ -175,8 +175,8 @@ def visualize_predictions(model, dataloader, num_samples=5):
     for i, (img_a, img_b, score_a, score_b) in enumerate(selected_samples):
         # Revert normalization
         if config["IMAGE"]["NORMALIZE"]:
-            img_a = img_a * torch.tensor([0.5] * 3).view(3, 1, 1) + torch.tensor([0.5] * 3).view(3, 1, 1)
-            img_b = img_b * torch.tensor([0.5] * 3).view(3, 1, 1) + torch.tensor([0.5] * 3).view(3, 1, 1)
+            img_a = img_a[:3, :, :] * torch.tensor([0.5] * 3).view(3, 1, 1) + torch.tensor([0.5] * 3).view(3, 1, 1)
+            img_b = img_b[:3, :, :] * torch.tensor([0.5] * 3).view(3, 1, 1) + torch.tensor([0.5] * 3).view(3, 1, 1)
 
         img_a = transform(
             img_a[:3, :, :]
@@ -420,17 +420,16 @@ def create_image_splits(ordered_images, train_ratio, val_ratio):
 
 
 def retrieve_snowless_images(windmill, angle):
-    snowless_images = []
-    with open("image_labels/labeled_data.csv") as file:
-        reader = csv.reader(file)
-        for row in reader:
-            img_path, value = row[0], row[1]
+    # Load CSV into DataFrame with columns [img_path, value]
+    df = pd.read_csv("image_labels/labeled_data.csv")
 
-            windmill_str = f"WT_{windmill}_SVIV{angle}"
+    windmill_str = f"WT_{windmill}_SVIV{angle}"
 
-            if windmill_str in img_path and value == "0":
-                snowless_images.append(Path(img_path.replace("\\", "/")).resolve())
+    # Filter rows where 'img_path' contains windmill_str and 'value' == "0"
+    df_filtered = df[df["image_path"].str.contains(windmill_str) & (df["label"] == "0")]
 
+    # Build list of Paths
+    snowless_images = [Path(p.replace("\\", "/")).resolve() for p in df_filtered["image_path"]]
     return snowless_images
 
 
@@ -493,6 +492,41 @@ def show_label_counts():
 def extract_angle(path):
     match = re.search(r"(WT_\d+_SVIV\d+)", path)
     return match.group(1) if match else "Unknown"
+
+def kendall_tau(model,test_loader, device):
+    model.eval()
+    concordant = 0
+    total_pairs = 0
+
+    with torch.no_grad():
+        for batch in test_loader:
+            # Unpack the batch: we only need the first two items (left_img, right_img)
+            left_img, right_img, *rest = batch
+
+            # Move to device
+            left_img = left_img.to(device)
+            right_img = right_img.to(device)
+
+            # Forward pass
+            left_scores = model(left_img).squeeze()  # shape: (batch_size,)
+            right_scores = model(right_img).squeeze()  # shape: (batch_size,)
+
+            # Count how many pairs the model got "correct"
+            # ground truth: left > right
+            correct = (left_scores < right_scores).sum().item()
+
+            # Update totals
+            total_pairs += left_scores.shape[0]
+            concordant += correct
+
+    # discordant = total_pairs - concordant
+    discordant = total_pairs - concordant
+
+    # Kendall's Tau = (#concordant - #discordant) / (#pairs)
+    tau = (concordant - discordant) / total_pairs
+
+    return tau
+
 
 
 if __name__ == "__main__":

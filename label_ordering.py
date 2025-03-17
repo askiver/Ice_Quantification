@@ -4,7 +4,7 @@ import os
 import random
 import sys
 from pathlib import Path
-
+import pandas as pd
 import cv2
 
 from label_images import get_all_image_paths, resize_image
@@ -27,14 +27,16 @@ KEY_TO_COMMAND = {
 
 # Only select images that contain snow
 def filter_images():
-    labelled_images = set()
-    with open("image_labels/labeled_data.csv") as file:
-        reader = csv.reader(file)
-        for row in reader:
-            img_path, value = Path(row[0]).as_posix(), row[1]
+    # load csv into dataframe
+    df = pd.read_csv("image_labels/labeled_data.csv")
 
-            if value != "unknown" and int(value) > 0:
-                labelled_images.add(img_path)
+    # Filter rows where 'label' is not 'unknown' and is > 0
+    # Convert label to int before comparison
+    df = df[df["label"] != "unknown"]
+    df = df[df["label"].astype(int) > 0]
+
+    # Convert image_path column to Path and then to posix, storing as a set
+    labelled_images = set(df["image_path"].apply(lambda x: Path(x).as_posix()))
 
     return labelled_images
 

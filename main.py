@@ -10,7 +10,7 @@ from data_preparation import DataPreparation
 from model import AutoEncoder, SnowRanker, VariationalAutoEncoder, Vision_Transformer
 from trainer import Trainer
 from utils import evaluate_and_sort_results, evaluate_model_accuracy, show_autoencoder_results, visualize_predictions, \
-    show_label_counts
+    show_label_counts, kendall_tau
 
 
 def setup_logger() -> None:
@@ -26,7 +26,7 @@ def setup_logger() -> None:
 def init_wandb(model):
     config = get_config()
     wandb.login("never", config["WANDB"]["API_KEY"])
-    wandb.init(project=config["WANDB"]["PROJECT"], entity=config["WANDB"]["USERNAME"])
+    wandb.init(project=config["WANDB"]["PROJECT"], entity=config["WANDB"]["USERNAME"], name=config["WANDB"]["RUN_NAME"])
 
     wandb.config.update(config)
 
@@ -52,15 +52,13 @@ if __name__ == "__main__":
 
     # model = SnowRanker().to(device)
     vit_model = config["MODEL"]["VIT"]["PRE_TRAINED"]
-    model = Vision_Transformer(pretrained_model=vit_model).to(device)
+    reference_image = config["IMAGE"]["REFERENCE_IMAGE"]
+    model = Vision_Transformer(pretrained_model=vit_model, reference_image=reference_image).to(device)
     if isinstance(model, Vision_Transformer):
         config["IMAGE"]["HEIGHT"] = 224
         config["IMAGE"]["WIDTH"] = 224
         config["IMAGE"]["CENTER_CROP"] = True
         config["IMAGE"]["NORMALIZE"] = True
-
-    if config["TRAINING"]["LOSS"] != "PairWise":
-        config["TRAINING"]["BATCH_SIZE"] = 1
 
     run_table.add_data("Device", device)
     # Add model name to the table
@@ -77,6 +75,7 @@ if __name__ == "__main__":
     # model.load_state_dict(torch.load("models/model.pth", weights_only=True))
     # log test accuracy
     run_table.add_data("Test Accuracy", str(evaluate_model_accuracy(best_model, test_loader)))
+    run_table.add_data("Kendall tau", str(kendall_tau(best_model, test_loader, device)))
     wandb.log({"Test Accuracy Table": run_table})
 
     visualize_predictions(best_model, test_loader)

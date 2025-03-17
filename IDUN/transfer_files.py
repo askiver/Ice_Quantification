@@ -18,7 +18,7 @@ FILES_TO_TRANSFER = [
     "../label_images.py",
     "../label_ordering.py",
     "../image_labels",
-    "../output",
+    #"../output",
     "../pyproject.toml",
 ]
 

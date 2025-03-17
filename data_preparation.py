@@ -131,13 +131,13 @@ class DataPreparation:
                 )
 
                 # load snowless images
-                #snowless_images = retrieve_snowless_images(wind_turbine, angle)
+                snowless_images = retrieve_snowless_images(wind_turbine, angle) if config["IMAGE"]["REFERENCE_IMAGE"] else None
 
                 dataset_class = ListImageDataset if config["TRAINING"]["LOSS"] != "PairWise" else PairWiseImageDataset
 
-                train_data = dataset_class(train_groups)
-                val_data = dataset_class(val_groups)
-                test_data = PairWiseImageDataset(test_groups)
+                train_data = dataset_class(train_groups, snowless_images)
+                val_data = dataset_class(val_groups, snowless_images)
+                test_data = PairWiseImageDataset(test_groups, snowless_images)
 
                 train_datasets.append(train_data)
                 val_datasets.append(val_data)
@@ -153,8 +153,10 @@ class DataPreparation:
         print(f"Validation data size: {len(val_data)}")
         print(f"Test data size: {len(test_data)}")
 
-        train_loader = DataLoader(train_data, batch_size=self.batch_size, shuffle=True, drop_last=False)
-        val_loader = DataLoader(val_data, batch_size=self.batch_size, shuffle=False, drop_last=False)
+        train_val_batch_size = 1 if not config["TRAINING"]["LOSS"] == "PairWise" else self.batch_size
+
+        train_loader = DataLoader(train_data, batch_size=train_val_batch_size, shuffle=True, drop_last=False)
+        val_loader = DataLoader(val_data, batch_size=train_val_batch_size, shuffle=False, drop_last=False)
         test_loader = DataLoader(test_data, batch_size=self.batch_size, shuffle=False, drop_last=False)
 
         return train_loader, val_loader, test_loader, transform

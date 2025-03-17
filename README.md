@@ -18,5 +18,11 @@
 - [ ] Try different models, and share which models are used with supervisor
 - [x] Write code to see how different angles compare with regards to human ranked snow amounts
 - [ ] Include examples of images from different wind parks in the W&B reports
-- [ ] Implement list-based loss to see how it does
-- [ ] Create a separate dataset class for list-based loss
+- [x] Implement list-based loss to see how it does
+- [x] Create a separate dataset class for list-based loss
+- [ ] Boost performance using various methods
+  - [ ] Use more data augmentation
+  - [ ] Add LR scheduler
+  - [ ] Experiment with different classifier networks
+  - [ ] Try different models
+  - [ ] Verify the quality of the data and labels

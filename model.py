@@ -2,7 +2,7 @@ import torch
 import torch.nn.functional as F
 import torch.nn.functional as f
 from torch import nn
-from transformers import ViTFeatureExtractor, ViTForImageClassification
+from transformers import ViTFeatureExtractor, ViTForImageClassification, ViTModel, ViTConfig
 
 from config import get_config
 
@@ -159,17 +159,62 @@ class SnowRanker(nn.Module):
 
 
 class Vision_Transformer(nn.Module):
-    def __init__(self, pretrained_model="google/vit-large-patch32-224-in21k"):
+    def __init__(self, pretrained_model="google/vit-large-patch32-224-in21k", reference_image=False):
         super().__init__()
         self.name = pretrained_model
-        self.vit = ViTForImageClassification.from_pretrained(pretrained_model)
+        #self.vit = ViTForImageClassification.from_pretrained(pretrained_model)
+
+        if reference_image:
+            # 1) Create a config with 6 channels
+            config = ViTConfig.from_pretrained(pretrained_model)
+            config.num_channels = 6
+
+            # 2) Instantiate a new ViTModel with 6-channel config (uninitialized for patch embedding)
+            self.vit = ViTModel(config)
+
+            # 3) Load the original 3-channel model
+            old_vit = ViTModel.from_pretrained(pretrained_model)
+
+            # 4) Copy old patch embedding weights into the new 6-channel layer
+            with torch.no_grad():
+                # old patch embedding (3 in_channels)
+                old_weight = old_vit.embeddings.patch_embeddings.projection.weight  # (embed_dim, 3, k, k)
+                old_bias = old_vit.embeddings.patch_embeddings.projection.bias  # (embed_dim,)
+
+                new_weight = self.vit.embeddings.patch_embeddings.projection.weight  # (embed_dim, 6, k, k)
+                new_bias = self.vit.embeddings.patch_embeddings.projection.bias  # (embed_dim,)
+
+                # Copy the original 3 channels
+                new_weight[:, :3, :, :] = old_weight
+
+                # Random init the extra 3 channels
+                nn.init.xavier_uniform_(new_weight[:, 3:, :, :])
+
+                # Copy bias
+                new_bias.copy_(old_bias)
+
+            # 5) Load the rest of the weights from old_vit (excluding patch embedding) with strict=False
+            pretrained_state = old_vit.state_dict()
+            # Remove patch embedding keys so we don't overwrite our manual surgery
+            del pretrained_state["embeddings.patch_embeddings.projection.weight"]
+            del pretrained_state["embeddings.patch_embeddings.projection.bias"]
+
+            self.vit.load_state_dict(pretrained_state, strict=False)
+
+        else:
+            # Just load a standard 3-channel ViT
+            self.vit = ViTModel.from_pretrained(pretrained_model)
+
         self.hidden_size = self.vit.config.hidden_size
         self.vit.classifier = nn.Sequential(
             nn.Linear(self.hidden_size, 512), nn.GELU(), nn.Linear(512, 256), nn.GELU(), nn.Linear(256, 1)
         )
 
     def forward(self, x):
-        return self.vit(x).logits
+        output =self.vit(x)
+        cls_emb = output.last_hidden_state[:, 0, :]
+        logits = self.vit.classifier(cls_emb)
+        return logits
 
     def pair_loss(self, lower_img_output, higher_img_output, rank_difference):
         reward_diff = higher_img_output - lower_img_output
@@ -214,10 +259,74 @@ class Vision_Transformer(nn.Module):
         # 3) Negative log-likelihood
         return -nll / N
 
+    def neuralsort_loss(self,
+                        pred_scores: torch.Tensor,
+                        true_scores: torch.Tensor,
+                        tau: float = 1.0) -> torch.Tensor:
+        """
+        Example loss that tries to match the model's soft-sorted pred_scores
+        to the ground-truth sorted order of true_scores.
+
+        Args:
+            pred_scores: shape (N,) - predicted scores for each item
+            true_scores: shape (N,) - ground-truth scores (or ranks).
+                         We'll sort these to get the correct ordering.
+            tau: temperature for the NeuralSort operator
+
+        Returns:
+            torch.Tensor: scalar loss
+        """
+        # 1) Generate the soft permutation matrix
+        P = neural_sort(pred_scores, tau=tau)  # shape (N, N)
+
+        # 2) Soft-sorted predicted scores = P^T * pred_scores
+        # shape: (N,) after matrix-vector multiplication
+        soft_sorted_pred = P.T @ pred_scores
+
+        # 3) True sorted scores (lowest to highest or vice versa)
+        # e.g. ascending:
+        sorted_true, _ = torch.sort(true_scores, dim=0, descending=True)  # shape (N,)
+
+        # 4) Some distance measure, e.g. L2
+        loss = torch.mean((soft_sorted_pred - sorted_true) ** 2)
+        return loss
+
     def get_correct_loss(self, loss_name):
         if loss_name == "ListNet":
             return self.ListNet_loss
         elif loss_name == "ListMLE":
             return self.list_mle_loss
+        elif loss_name == "NeuralSort":
+            return self.neuralsort_loss
         else:
             return self.pair_loss
+
+
+def neural_sort(s: torch.Tensor, tau: float = 1.0) -> torch.Tensor:
+    """
+    Produces a soft permutation matrix (N, N) from a score vector s of shape (N,).
+    Tau is the temperature controlling how 'sharp' the permutation is.
+
+    Returns:
+        P: A (N, N) tensor that is row-stochastic. P[i, :] is the distribution over
+           item i's position in the sorted order.
+    """
+    # s shape: (N,)
+    # We want a row-stochastic matrix P in R^(N x N).
+    # One approach from the paper is:
+    #   P = softmax( - (s - s^T)^2 / tau ), row-wise or column-wise.
+
+    N = s.shape[0]
+    # Expand s to shape (N, 1) so we can do s - s^T
+    s_ = s.view(-1, 1)  # shape: (N, 1)
+    # Score differences
+    diff = s_ - s_.T     # shape: (N, N)
+
+    # Or some variants use squared differences:
+    #   diff_sq = -(diff**2) / tau
+    #   P = softmax(diff_sq, dim=1)
+    # We'll do the simpler version with negative differences:
+    diff = -(diff) / tau  # shape: (N, N)
+    P = F.softmax(diff, dim=1)  # row-stochastic
+
+    return P
