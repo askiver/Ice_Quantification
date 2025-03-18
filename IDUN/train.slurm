@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name="Training ice quantification models"
 #SBATCH --account=share-ie-idi
-#SBATCH --time=00-12:00:00
+#SBATCH --time=01-00:00:00
 #SBATCH --partition=GPUQ
 #SBATCH --mem=128G
 

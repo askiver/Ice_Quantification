@@ -187,8 +187,12 @@ class Vision_Transformer(nn.Module):
                 # Copy the original 3 channels
                 new_weight[:, :3, :, :] = old_weight
 
+                # copy the channels over to the new channels as well
+
+                new_weight[:, 3:, :, :] = old_weight
+
                 # Random init the extra 3 channels
-                nn.init.xavier_uniform_(new_weight[:, 3:, :, :])
+                #nn.init.xavier_uniform_(new_weight[:, 3:, :, :])
 
                 # Copy bias
                 new_bias.copy_(old_bias)
