@@ -2,7 +2,7 @@ import csv
 import os
 import random
 from pathlib import Path
-
+import pandas as pd
 import cv2
 
 # Keyboard button to image-category
@@ -30,15 +30,15 @@ def resize_image(img, max_width, max_height):
 
 
 def load_progress():
-    """Load progress from the CSV file."""
-    labeled_images = set()
-    if os.path.exists(OUTPUT_CSV):
-        with open(OUTPUT_CSV) as file:
-            reader = csv.reader(file)
-            for row in reader:
-                if row:
-                    labeled_images.add(Path(row[0].replace("\\", "/")).resolve())
-    return labeled_images
+    """Load file paths from a CSV with headers, returning them as a list of Paths."""
+    if not os.path.exists(OUTPUT_CSV):
+        return []
+
+    # Read CSV with header row (the first row is column names)
+    df = pd.read_csv(OUTPUT_CSV, header=0)
+
+    file_paths = set(df["image_path"])
+    return file_paths
 
 
 def get_all_image_paths(folder):
@@ -47,7 +47,10 @@ def get_all_image_paths(folder):
     for root, _, files in os.walk(folder):
         for file in files:
             if file.lower().endswith(("png", "jpg", "jpeg")):
-                image_paths.append(os.path.join(root, file))
+                full_path = os.path.join(root, file)
+                # Convert to a Path object, then use as_posix() for forward slashes
+                posix_path = Path(full_path).as_posix()
+                image_paths.append(posix_path)
     return sorted(image_paths)
 
 
