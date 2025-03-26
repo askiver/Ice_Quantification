@@ -10,7 +10,7 @@ from data_preparation import DataPreparation
 from model import AutoEncoder, SnowRanker, VariationalAutoEncoder, Vision_Transformer
 from trainer import Trainer
 from utils import evaluate_and_sort_results, evaluate_model_accuracy, show_autoencoder_results, visualize_predictions, \
-    show_label_counts, kendall_tau
+    show_label_counts, kendall_tau, test_model_on_snow_scenes
 
 
 def setup_logger() -> None:
@@ -80,6 +80,7 @@ if __name__ == "__main__":
 
     visualize_predictions(best_model, test_loader)
     evaluate_and_sort_results(best_model, transform, test_loader)
+    test_model_on_snow_scenes("snow_images", best_model, transform)
     #show_autoencoder_results(model, test_loader)
     show_label_counts()
     wandb.finish()

@@ -4,10 +4,12 @@ import torch
 from torch import nn
 import wandb
 from config import get_config
+from torch.optim.lr_scheduler import OneCycleLR
 
 
 class Trainer:
     def __init__(self, model: torch.nn.Module) -> None:
+        self.scheduler = None
         config = get_config()
         self.model = model
         self.device = config["TRAINING"]["DEVICE"]
@@ -18,7 +20,7 @@ class Trainer:
             self.model.parameters(),
             lr=config["TRAINING"]["LEARNING_RATE"],
             weight_decay=config["TRAINING"]["WEIGHT_DECAY"],
-        )
+        )     
         self.train_method = self.pair_learning if config["TRAINING"]["LOSS"] == "PairWise" else self.list_learning
         self.lowest_val_loss = float("inf")
         self.best_model = None
@@ -27,6 +29,15 @@ class Trainer:
     def train(
         self, train_loader: torch.utils.data.DataLoader, val_loader: torch.utils.data.DataLoader, save_model=False
     ) -> nn.Module:
+        config = get_config()
+
+        self.scheduler = OneCycleLR(
+            self.optimizer,
+            max_lr=config["TRAINING"]["LEARNING_RATE"],
+            steps_per_epoch=len(train_loader),
+            epochs=config["TRAINING"]["EPOCHS"],
+        )
+        
         train_length = len(train_loader)
         val_length = len(val_loader)
         epochs_since_improvement = 0
@@ -54,8 +65,9 @@ class Trainer:
                     "epoch": epoch,
                     "train_loss": epoch_loss.to("cpu").item() / train_length,
                     "val_loss": epoch_val_loss.to("cpu").item() / val_length,
-                }
-            )
+                    "learning_rate": self.scheduler.get_last_lr()[0],
+                })
+
             if epochs_since_improvement > self.early_stopping:
                 self.logger.info("Early stopping")
                 break
@@ -88,6 +100,8 @@ class Trainer:
             if train:
                 loss.backward()
                 self.optimizer.step()
+                # Update learning rate
+                self.scheduler.step()
 
         return epoch_loss
 
@@ -113,5 +127,7 @@ class Trainer:
             if train:
                 loss.backward()
                 self.optimizer.step()
+                # Update learning rate
+                self.scheduler.step()
 
         return epoch_loss

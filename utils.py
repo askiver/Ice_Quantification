@@ -4,7 +4,7 @@ import random
 import re
 import shutil
 from pathlib import Path
-
+import pillow_heif
 import numpy as np
 from torchvision import transforms
 import matplotlib.pyplot as plt
@@ -282,7 +282,7 @@ def evaluate_and_sort_results(model, transform, test_loader=None):
         turbine_angle = image_name[-16:-4]
 
         model_normalized_scores[turbine_angle].append(
-            (normalized_score, int(df.loc[image_path.replace("/", "\\")].iloc[0]))
+            (normalized_score, int(df.loc[image_path].iloc[0]))
         )
 
         new_image_name = f"{rank:03d}_{score:.2f}_{image_name}"
@@ -528,6 +528,54 @@ def kendall_tau(model,test_loader, device):
     return tau
 
 
+def test_model_on_snow_scenes(snow_folder, model, transform):
+    config = get_config()
+    device = config["TRAINING"]["DEVICE"]
+
+    # Set model to eval mode, move to correct device
+    model.eval()
+    model.to(device)
+
+    # Gather image paths
+    image_paths = []
+    for root, _, files in os.walk(snow_folder):
+        for file in files:
+            image_paths.append(os.path.join(root, file))
+
+    results = []
+
+    # Register the HEIF plugin with Pillow
+    pillow_heif.register_heif_opener()
+
+    with torch.no_grad():
+        for img_path in image_paths:
+            img = Image.open(img_path).convert("RGB")
+            # Apply transforms
+            tensor_img = transform(img).unsqueeze(0).to(device)  # shape: (1, C, H, W)
+
+            # Forward pass
+            output = model(tensor_img)
+            # If your model returns a single float per image, we can do:
+            snow_val = output.squeeze().item()
+            # e.g., if output.shape == (1,1), then output.squeeze().item() is a float
+
+            results.append((img_path, snow_val))
+
+        # Sort by predicted snow amount (descending: most snow first)
+        sorted_results = sorted(results, key=lambda x: x[1], reverse=True)
+
+        # Build a list of wandb.Image objects with captions
+        image_list = []
+        for path, score in sorted_results:
+            # caption includes the file name + the predicted score
+            pil_img = Image.open(path).convert("RGB")
+            caption_text = f"{Path(path).name} | Score={score:.2f}"
+            image_list.append(wandb.Image(pil_img, caption=caption_text))
+
+        # Log the list of images to W&B
+        wandb.log({"scene_images": image_list})
+
+        print(f"Analysis complete. {len(sorted_results)} images processed.")
 
 if __name__ == "__main__":
     pass

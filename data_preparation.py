@@ -61,6 +61,7 @@ class PairWiseImageDataset(Dataset):
         center_crop = config["IMAGE"]["CENTER_CROP"]
         normalize = config["IMAGE"]["NORMALIZE"]
         shortest_side = 1080
+        dev_run = config["TRAINING"]["QUICK_DEV_RUN"]
 
         # Generate ordered image pairs
 
@@ -91,6 +92,10 @@ class PairWiseImageDataset(Dataset):
                 self.pairs.append(
                     (lower_img, higher_img, str(lower_image_path), str(higher_image_path), rank_difference)
                 )
+
+            # Early stopping for development
+            if len(self.pairs) >= 50 and dev_run:
+                break
 
     def __len__(self):
         return len(self.pairs)
