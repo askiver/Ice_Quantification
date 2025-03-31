@@ -1,29 +1,32 @@
+import random
+import glob
+import os
 import torch
+from pathlib import Path
 from PIL import Image
 from torch.utils.data import ConcatDataset, DataLoader, Dataset, Subset, random_split
 from torchvision import datasets, transforms
+from torchvision.transforms import functional as F
 
-from config import get_config
+from config import get_config, init_config
+from label_images import load_progress
 from label_ordering import load_progress_ordered
 from utils import add_reference_image, create_image_splits, retrieve_snowless_images
+
+class SquareCenterCrop:
+    def __call__(self, img):
+        # Get the image size: (width, height)
+        width, height = img.size
+        # Determine the smallest side to use as crop size
+        crop_size = min(width, height)
+        # Apply center crop with computed square dimensions
+        return F.center_crop(img, [crop_size, crop_size])
 
 class ListImageDataset(Dataset):
     def __init__(self, ordered_images_subset):
         config = get_config()
-        image_height = config["IMAGE"]["HEIGHT"]
-        image_width = config["IMAGE"]["WIDTH"]
-        center_crop = config["IMAGE"]["CENTER_CROP"]
-        normalize = config["IMAGE"]["NORMALIZE"]
-        shortest_side = 1080
 
-        self.transform = transforms.Compose(
-            [
-                *([transforms.CenterCrop(shortest_side)] if center_crop else []),
-                transforms.Resize((image_height, image_width)),
-                transforms.ToTensor(),
-                *([transforms.Normalize(mean=[0.5] * 3, std=[0.5] * 3)] if normalize else []),
-            ]
-        )
+        self.transform = define_transform()
 
         images = []
         image_ranks = []
@@ -50,33 +53,56 @@ class ListImageDataset(Dataset):
         return self.data[idx]
 
 
+def define_transform(train=True):
+    config = get_config()
 
+    center_crop = config["IMAGE"]["CENTER_CROP"]
+    image_height = config["IMAGE"]["HEIGHT"]
+    image_width = config["IMAGE"]["WIDTH"]
+    horizontal_flip = config["IMAGE"]["HORIZONTAL_FLIP"]
+    brightness = config["IMAGE"]["BRIGHTNESS"]
+    contrast = config["IMAGE"]["CONTRAST"]
+    saturation = config["IMAGE"]["SATURATION"]
+    hue = config["IMAGE"]["HUE"]
+    normalize = config["IMAGE"]["NORMALIZE"]
+
+    transform = transforms.Compose(
+        [
+            *([SquareCenterCrop()] if center_crop else []),
+            transforms.Resize((image_height, image_width)),
+            *([transforms.RandomHorizontalFlip(p=horizontal_flip)] if train else []),
+            *([transforms.ColorJitter(brightness=brightness, contrast=contrast, saturation=saturation, hue=hue)] if train else []),
+            transforms.ToTensor(),
+            *([transforms.Normalize(mean=[0.5] * 3, std=[0.5] * 3)] if normalize else []),
+        ]
+    )
+
+    return transform
 
 class PairWiseImageDataset(Dataset):
-    def __init__(self, ordered_images_subset, snowless_images=None):
+    def __init__(self, ordered_images_subset, snowless_images=None, train=True):
         config = get_config()
-        image_height = config["IMAGE"]["HEIGHT"]
-        image_width = config["IMAGE"]["WIDTH"]
         add_reference = config["IMAGE"]["REFERENCE_IMAGE"]
-        center_crop = config["IMAGE"]["CENTER_CROP"]
-        normalize = config["IMAGE"]["NORMALIZE"]
-        shortest_side = 1080
         dev_run = config["TRAINING"]["QUICK_DEV_RUN"]
 
         # Generate ordered image pairs
 
-        self.transform = transforms.Compose(
-            [
-                *([transforms.CenterCrop(shortest_side)] if center_crop else []),
-                transforms.Resize((image_height, image_width)),
-                transforms.ToTensor(),
-                *([transforms.Normalize(mean=[0.5] * 3, std=[0.5] * 3)] if normalize else []),
-            ]
-        )
+        self.transform = define_transform(train)
 
         self.pairs = []
 
         max_rank_index = len(ordered_images_subset) - 1
+
+        for low_idx, lower_image_path in enumerate(ordered_images_subset):
+            for high_idx, higher_image_path in enumerate(ordered_images_subset[low_idx + 1 :]):
+                rank_difference = high_idx / max_rank_index
+                # Leftmost always lower
+                self.pairs.append((lower_image_path, higher_image_path, rank_difference))
+
+            # Early stopping for development
+            if len(self.pairs) >= 50 and dev_run:
+                break
+        """
         # Due to ties, images are ordered in groups
         for low_idx, lower_image_path in enumerate(ordered_images_subset):
             lower_img = self.transform(Image.open(lower_image_path).convert("RGB"))
@@ -92,24 +118,26 @@ class PairWiseImageDataset(Dataset):
                 self.pairs.append(
                     (lower_img, higher_img, str(lower_image_path), str(higher_image_path), rank_difference)
                 )
-
-            # Early stopping for development
-            if len(self.pairs) >= 50 and dev_run:
-                break
+        """
 
     def __len__(self):
         return len(self.pairs)
 
     def __getitem__(self, idx):
-        """lower_img_path, higher_img_path = self.pairs[idx]
+        # Retrieve the file paths and rank difference for the given index
+        lower_image_path, higher_image_path, rank_difference = self.pairs[idx]
 
-        # Load and transform images on-the-fly
-        lower_img = self.transform(Image.open(lower_img_path).convert("RGB"))
-        higher_img = self.transform(Image.open(higher_img_path).convert("RGB"))
+        # Open images using PIL and convert to RGB
+        lower_img = Image.open(lower_image_path).convert("RGB")
+        higher_img = Image.open(higher_image_path).convert("RGB")
 
-        return lower_img, higher_img, lower_img_path, higher_img_path
-        """
-        return self.pairs[idx]
+        # Apply the transformation pipeline
+        lower_img = self.transform(lower_img)
+        higher_img = self.transform(higher_img)
+
+        # Return the transformed images and the rank difference.
+        # Optionally, you can also return the file paths if needed.
+        return lower_img, higher_img, lower_image_path, higher_image_path, rank_difference
 
 
 class DataPreparation:
@@ -126,6 +154,8 @@ class DataPreparation:
         val_datasets = []
         test_datasets = []
 
+        dataset_class = ListImageDataset if config["TRAINING"]["LOSS"] != "PairWise" else PairWiseImageDataset
+
         for wind_turbine in ["07", "21", "41"]:
             for angle in ["01", "02", "03"]:
                 ordered_images = load_progress_ordered(f"WT_{wind_turbine}_SVIV{angle}")
@@ -138,18 +168,16 @@ class DataPreparation:
                 # load snowless images
                 snowless_images = retrieve_snowless_images(wind_turbine, angle) if config["IMAGE"]["REFERENCE_IMAGE"] else None
 
-                dataset_class = ListImageDataset if config["TRAINING"]["LOSS"] != "PairWise" else PairWiseImageDataset
-
-                train_data = dataset_class(train_groups, snowless_images)
-                val_data = dataset_class(val_groups, snowless_images)
-                test_data = PairWiseImageDataset(test_groups, snowless_images)
+                train_data = dataset_class(train_groups, snowless_images, train=True)
+                val_data = dataset_class(val_groups, snowless_images, train=False)
+                test_data = PairWiseImageDataset(test_groups, snowless_images, train=False)
 
                 train_datasets.append(train_data)
                 val_datasets.append(val_data)
                 test_datasets.append(test_data)
 
         # Concatenate all datasets
-        transform = train_datasets[0].transform
+        transform = test_datasets[0].transform
         train_data = ConcatDataset(train_datasets)
         val_data = ConcatDataset(val_datasets)
         test_data = ConcatDataset(test_datasets)
@@ -160,8 +188,38 @@ class DataPreparation:
 
         train_val_batch_size = 1 if not config["TRAINING"]["LOSS"] == "PairWise" else self.batch_size
 
-        train_loader = DataLoader(train_data, batch_size=train_val_batch_size, shuffle=True, drop_last=False)
-        val_loader = DataLoader(val_data, batch_size=train_val_batch_size, shuffle=False, drop_last=False)
-        test_loader = DataLoader(test_data, batch_size=self.batch_size, shuffle=False, drop_last=False)
+        common_args = {
+            "drop_last": False,
+            "num_workers": 4,
+            "pin_memory": True,
+            "persistent_workers": True,
+        }
+
+        train_loader = DataLoader(train_data, batch_size=train_val_batch_size, shuffle=True, **common_args)
+        val_loader = DataLoader(val_data, batch_size=train_val_batch_size, shuffle=False, **common_args)
+        test_loader = DataLoader(test_data, batch_size=self.batch_size, shuffle=False, **common_args)
 
         return train_loader, val_loader, test_loader, transform
+
+
+
+if __name__ == "__main__":
+    init_config()
+    # create transform, load some random images and see how they look after the transform
+    config = get_config()
+    transform = define_transform(train=True)
+    all_paths = list(load_progress())
+    random.shuffle(all_paths)
+
+    # clear directory
+    [f.unlink() for f in Path("transformed_images").glob("*") if f.is_file()]
+
+    for i in range(100):
+        img_path = all_paths[i]
+        img = Image.open(img_path).convert("RGB")
+        img = transform(img)
+        # Convert the tensor back to a PIL image
+        img = transforms.ToPILImage()(img)
+        # Store the transformed image in a new folder
+        img.save(f"transformed_images/{i}.jpg")
+

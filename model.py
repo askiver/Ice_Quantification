@@ -162,6 +162,8 @@ class Vision_Transformer(nn.Module):
     def __init__(self, pretrained_model="google/vit-large-patch32-224-in21k", reference_image=False):
         super().__init__()
         self.name = pretrained_model
+        config = get_config()
+        dropout = config["MODEL"]["VIT"]["DROPOUT"]
         #self.vit = ViTForImageClassification.from_pretrained(pretrained_model)
 
         if reference_image:
@@ -211,7 +213,19 @@ class Vision_Transformer(nn.Module):
 
         self.hidden_size = self.vit.config.hidden_size
         self.vit.classifier = nn.Sequential(
-            nn.Linear(self.hidden_size, 512), nn.GELU(), nn.Linear(512, 256), nn.GELU(), nn.Linear(256, 1)
+            nn.Linear(self.hidden_size, 1024),
+            nn.BatchNorm1d(1024),
+            nn.GELU(),
+            nn.Dropout(dropout),
+            nn.Linear(1024, 512),
+            nn.BatchNorm1d(512),
+            nn.GELU(),
+            nn.Dropout(dropout),
+            nn.Linear(512, 256),
+            nn.BatchNorm1d(256),
+            nn.GELU(),
+            nn.Dropout(dropout),
+            nn.Linear(256, 1)
         )
 
     def forward(self, x):

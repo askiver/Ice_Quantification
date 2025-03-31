@@ -5,6 +5,7 @@ from torch import nn
 import wandb
 from config import get_config
 from torch.optim.lr_scheduler import OneCycleLR
+from torch.amp import autocast, GradScaler
 
 
 class Trainer:
@@ -12,6 +13,7 @@ class Trainer:
         self.scheduler = None
         config = get_config()
         self.model = model
+        self.scaler = GradScaler("cuda")
         self.device = config["TRAINING"]["DEVICE"]
         self.epochs = config["TRAINING"]["EPOCHS"]
         self.criterion = model.get_correct_loss(config["TRAINING"]["LOSS"])
@@ -20,7 +22,8 @@ class Trainer:
             self.model.parameters(),
             lr=config["TRAINING"]["LEARNING_RATE"],
             weight_decay=config["TRAINING"]["WEIGHT_DECAY"],
-        )     
+        )
+
         self.train_method = self.pair_learning if config["TRAINING"]["LOSS"] == "PairWise" else self.list_learning
         self.lowest_val_loss = float("inf")
         self.best_model = None
@@ -116,17 +119,19 @@ class Trainer:
                 rank_difference.to(self.device),
             )
 
-            lower_img_output, higher_img_output = (
-                self.model(lower_img_data),
-                self.model(higher_img_data),
-            )
+            with autocast("cuda"):
+                lower_img_output, higher_img_output = (
+                    self.model(lower_img_data),
+                    self.model(higher_img_data),
+                )
 
-            loss = self.criterion(lower_img_output, higher_img_output, rank_difference)
-            epoch_loss += loss.item()
+                loss = self.criterion(lower_img_output, higher_img_output, rank_difference)
+                epoch_loss += loss.item()
 
             if train:
-                loss.backward()
-                self.optimizer.step()
+                self.scaler.scale(loss).backward()
+                self.scaler.step(self.optimizer)
+                self.scaler.update()
                 # Update learning rate
                 self.scheduler.step()
 
