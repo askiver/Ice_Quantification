@@ -26,7 +26,7 @@ KEY_TO_COMMAND = {
 
 
 # Only select images that contain snow
-def filter_images():
+def filter_images(ordered_dict):
     # load csv into dataframe
     df = pd.read_csv("image_labels/labeled_data.csv")
 
@@ -34,6 +34,15 @@ def filter_images():
     # Convert label to int before comparison
     df = df[df["label"] != "unknown"]
     df = df[df["label"].astype(int) > 0]
+
+    # find all image paths that are in the ordered dict
+    ordered_paths = set()
+    for angle in ordered_dict:
+        for image_path in ordered_dict[angle]:
+            ordered_paths.add(image_path)
+
+    # Remove images that are already ordered
+    df = df[~df["image_path"].isin(ordered_paths)]
 
     # Convert image_path column to Path and then to posix, storing as a set
     labelled_images = set(df["image_path"].apply(lambda x: Path(x).as_posix()))
@@ -128,10 +137,11 @@ def insert_image(new_image, ordered_images):
             case "=":
                 print("There is a tie")
                 # Randomly choose one of the two
+                # Ends the comparison immediately
                 if random.choice([True, False]):
-                    low = mid + 1
+                    low, high = mid, mid
                 else:
-                    high = mid
+                    low, high = mid + 1, mid + 1
 
             case "quit":
                 print("Exiting program")
@@ -152,7 +162,7 @@ def label_orderings():
 
     # Get all images from the folder
     # images = get_all_image_paths(IMAGES_FOLDER)
-    images = filter_images()
+    images = filter_images(ordered_dict)
 
     for idx, new_image in enumerate(images):
         # Retrieve angle from image path
