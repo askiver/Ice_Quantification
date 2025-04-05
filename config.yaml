@@ -1,12 +1,12 @@
 TRAINING:
-  EPOCHS: 100
+  EPOCHS: 50
   TRAIN_PORTION: 0.5
   VAL_PORTION: 0.25
   BATCH_SIZE: 64
   LEARNING_RATE: 1.0e-6
   WEIGHT_DECAY: 1.0e-3
   DEVICE: "cuda:0"
-  EARLY_STOPPING: 25
+  EARLY_STOPPING: 5
   LOSS: "PairWise"
   QUICK_DEV_RUN: False
 IMAGE:
@@ -28,11 +28,11 @@ MODEL:
     KERNEL_SIZE: 5
   VIT:
     PRE_TRAINED: "google/vit-huge-patch14-224-in21k"
-    DROPOUT: 0.1
+    DROPOUT: 0.0
 
 WANDB:
   API_KEY: "9feec8c3920904cc6be34692498cc5e82486646b"
   USERNAME: "askis-ntnu"
   PROJECT: "snowranker"
-  RUN_NAME: "dropout"
+  RUN_NAME:
 

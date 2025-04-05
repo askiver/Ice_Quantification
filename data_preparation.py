@@ -3,7 +3,7 @@ import glob
 import os
 import torch
 from pathlib import Path
-from PIL import Image
+from PIL import Image, ImageOps
 from torch.utils.data import ConcatDataset, DataLoader, Dataset, Subset, random_split
 from torchvision import datasets, transforms
 from torchvision.transforms import functional as F
@@ -21,6 +21,20 @@ class SquareCenterCrop:
         crop_size = min(width, height)
         # Apply center crop with computed square dimensions
         return F.center_crop(img, [crop_size, crop_size])
+
+class LetterboxPad:
+    def __init__(self, size, fill=(0, 0, 0)):
+        """
+        size: desired output square size (e.g., 224)
+        fill: padding color, default black
+        """
+        self.size = size
+        self.fill = fill
+
+    def __call__(self, img):
+        # Use ImageOps.pad to resize the image, preserving aspect ratio,
+        # and add padding (if needed) to make it exactly (size, size)
+        return ImageOps.pad(img, (self.size, self.size), color=self.fill, centering=(0.5, 0.5))
 
 class ListImageDataset(Dataset):
     def __init__(self, ordered_images_subset):
@@ -68,8 +82,8 @@ def define_transform(train=True):
 
     transform = transforms.Compose(
         [
-            *([SquareCenterCrop()] if center_crop else []),
-            transforms.Resize((image_height, image_width)),
+            LetterboxPad(size=224, fill=(0, 0, 0)),
+            #transforms.Resize((image_height, image_width)),
             *([transforms.RandomHorizontalFlip(p=horizontal_flip)] if train else []),
             *([transforms.ColorJitter(brightness=brightness, contrast=contrast, saturation=saturation, hue=hue)] if train else []),
             transforms.ToTensor(),
