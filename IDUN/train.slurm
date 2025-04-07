@@ -9,7 +9,7 @@
 #SBATCH --gres=gpu:1            # Allocate 1 GPU for the job (per node)
 #SBATCH --ntasks-per-node=1     # Allocate 1 task per node
 #SBATCH --cpus-per-task=8       # Allocate 8 CPU cores per task
-#SBATCH --nodelist=idun-06-[01-07],idun-07-[08-10],idun-08-01 # Specify the nodes to be used
+#SBATCH --nodelist=idun-01-[01-06],idun-06-[01-07],idun-07-[08-10],idun-08-01 # Specify the nodes to be used
 
 
 #SBATCH --mail-user=sylte.a.iver@ntnu.no

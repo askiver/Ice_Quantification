@@ -25,8 +25,12 @@ def setup_logger() -> None:
 
 def init_wandb(model):
     config = get_config()
+
     wandb.login("never", config["WANDB"]["API_KEY"])
-    wandb.init(project=config["WANDB"]["PROJECT"], entity=config["WANDB"]["USERNAME"], name=config["WANDB"]["RUN_NAME"])
+    wandb.init(project=config["WANDB"]["PROJECT"],
+               entity=config["WANDB"]["USERNAME"],
+               name=config["WANDB"]["RUN_NAME"],
+               mode="disabled" if config["WANDB"]["DISABLED"] else "online",)
 
     wandb.config.update(config)
 

@@ -14,7 +14,7 @@ import torch
 import torch.nn.functional as f
 from black.trans import defaultdict
 from PIL import Image
-
+import cv2
 import wandb
 from config import get_config
 from label_ordering import load_progress_ordered
@@ -229,8 +229,11 @@ def evaluate_and_sort_results(model, transform, test_loader=None):
     with torch.no_grad():
         for image_path in image_paths:
             # Load and preprocess image
-            image = Image.open(image_path).convert("RGB")
-            image_tensor = transform(image)
+            image = cv2.imread(image_path)
+            # convert to RGB
+            image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+            image_aug = transform(image=image)
+            image_tensor = image_aug["image"]
 
             if reference_image:
                 image_tensor = add_reference_image(image_tensor, transform)
@@ -281,8 +284,15 @@ def evaluate_and_sort_results(model, transform, test_loader=None):
 
         turbine_angle = image_name[-16:-4]
 
+        value = df.loc[image_path].iloc[0]
+        try:
+            value = int(value)
+        except ValueError:
+            print(image_path)
+            continue
+
         model_normalized_scores[turbine_angle].append(
-            (normalized_score, int(df.loc[image_path].iloc[0]))
+            (normalized_score, value)
         )
 
         new_image_name = f"{rank:03d}_{score:.2f}_{image_name}"
@@ -549,9 +559,12 @@ def test_model_on_snow_scenes(snow_folder, model, transform):
 
     with torch.no_grad():
         for img_path in image_paths:
+            # Convert using Pillow to support HEIC and HEIF
             img = Image.open(img_path).convert("RGB")
+            img = np.array(img)
             # Apply transforms
-            tensor_img = transform(img).unsqueeze(0).to(device)  # shape: (1, C, H, W)
+            tensor_aug = transform(image=img) #transform(img).unsqueeze(0).to(device)  # shape: (1, C, H, W)
+            tensor_img = tensor_aug["image"].unsqueeze(0).to(device)
 
             # Forward pass
             output = model(tensor_img)

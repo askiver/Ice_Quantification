@@ -212,20 +212,21 @@ class Vision_Transformer(nn.Module):
             self.vit = ViTModel.from_pretrained(pretrained_model)
 
         self.hidden_size = self.vit.config.hidden_size
+        clf_start = 1024
         self.vit.classifier = nn.Sequential(
-            nn.Linear(self.hidden_size, 1024),
-            nn.BatchNorm1d(1024),
+            nn.Linear(self.hidden_size, clf_start),
+            #nn.BatchNorm1d(1024),
             nn.GELU(),
             nn.Dropout(dropout),
-            nn.Linear(1024, 512),
-            nn.BatchNorm1d(512),
+            nn.Linear(clf_start, clf_start//2),
+            #nn.BatchNorm1d(512),
             nn.GELU(),
             nn.Dropout(dropout),
-            nn.Linear(512, 256),
-            nn.BatchNorm1d(256),
+            nn.Linear(clf_start//2, clf_start//4),
+            #nn.BatchNorm1d(256),
             nn.GELU(),
             nn.Dropout(dropout),
-            nn.Linear(256, 1)
+            nn.Linear(clf_start//4, 1)
         )
 
     def forward(self, x):

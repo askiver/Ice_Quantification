@@ -49,13 +49,13 @@ class Trainer:
 
             self.model.train()
             epoch_loss = self.train_method(train_loader, train=True)
-            self.logger.info("Epoch: %d, Training Loss: %.6f", epoch, epoch_loss.to("cpu").item() / train_length)
+            self.logger.info("Epoch: %d, Training Loss: %.6f", epoch, epoch_loss / train_length)
 
 
             self.model.eval()
             with torch.no_grad():
                 epoch_val_loss = self.train_method(val_loader, train=False)
-            self.logger.info("Epoch: %d, Validation Loss: %.6f", epoch, epoch_val_loss.to("cpu").item() / val_length)
+            self.logger.info("Epoch: %d, Validation Loss: %.6f", epoch, epoch_val_loss / val_length)
 
 
             if epoch_val_loss < self.lowest_val_loss:
@@ -66,8 +66,8 @@ class Trainer:
             wandb.log(
                 {
                     "epoch": epoch,
-                    "train_loss": epoch_loss.to("cpu").item() / train_length,
-                    "val_loss": epoch_val_loss.to("cpu").item() / val_length,
+                    "train_loss": epoch_loss / train_length,
+                    "val_loss": epoch_val_loss / val_length,
                     "learning_rate": self.scheduler.get_last_lr()[0],
                 })
 
@@ -86,7 +86,7 @@ class Trainer:
 
 
     def list_learning(self, data_loader, train=True):
-        epoch_loss = torch.tensor(0.0, device=self.device)
+        epoch_loss = 0.0
         for images, true_ranks, _ in data_loader:
             self.optimizer.zero_grad()
             # Remove batch dimension for images and ranks
@@ -110,7 +110,7 @@ class Trainer:
 
 
     def pair_learning(self, data_loader, train=True):
-        epoch_loss = torch.tensor(0.0, device=self.device)
+        epoch_loss = 0.0
         for lower_img_batch, higher_img_batch, _, _, rank_difference in data_loader:
             self.optimizer.zero_grad()
             lower_img_data, higher_img_data, rank_difference = (
@@ -120,13 +120,11 @@ class Trainer:
             )
 
             with autocast("cuda"):
-                lower_img_output, higher_img_output = (
-                    self.model(lower_img_data),
-                    self.model(higher_img_data),
-                )
-
+                lower_img_output = self.model(lower_img_data)
+                higher_img_output = self.model(higher_img_data)
                 loss = self.criterion(lower_img_output, higher_img_output, rank_difference)
-                epoch_loss += loss.item()
+
+            epoch_loss += loss.item()
 
             if train:
                 self.scaler.scale(loss).backward()

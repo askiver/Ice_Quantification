@@ -1,9 +1,15 @@
+import functools
 import random
 import glob
 import os
+
+import cv2
 import torch
 from pathlib import Path
+from cv2 import imread
+from albumentations.pytorch import ToTensorV2
 from PIL import Image, ImageOps
+import albumentations as A
 from torch.utils.data import ConcatDataset, DataLoader, Dataset, Subset, random_split
 from torchvision import datasets, transforms
 from torchvision.transforms import functional as F
@@ -46,7 +52,7 @@ class ListImageDataset(Dataset):
         image_ranks = []
         image_paths = []
         for idx, image_path in enumerate(reversed(ordered_images_subset)):
-            img = self.transform(Image.open(image_path).convert("RGB"))
+            #img = self.transform(Image.open(image_path).convert("RGB"))
             images.append(img)
             image_ranks.append(idx)
             image_paths.append(image_path)
@@ -80,16 +86,27 @@ def define_transform(train=True):
     hue = config["IMAGE"]["HUE"]
     normalize = config["IMAGE"]["NORMALIZE"]
 
+    """
     transform = transforms.Compose(
         [
-            LetterboxPad(size=224, fill=(0, 0, 0)),
+            #*([SquareCenterCrop()] if center_crop else []),
             #transforms.Resize((image_height, image_width)),
             *([transforms.RandomHorizontalFlip(p=horizontal_flip)] if train else []),
             *([transforms.ColorJitter(brightness=brightness, contrast=contrast, saturation=saturation, hue=hue)] if train else []),
+            LetterboxPad(size=224, fill=(0, 0, 0)),
             transforms.ToTensor(),
             *([transforms.Normalize(mean=[0.5] * 3, std=[0.5] * 3)] if normalize else []),
         ]
     )
+    """
+    transform = A.Compose([
+        A.LongestMaxSize(max_size=max(image_height, image_width)),
+        *([A.HorizontalFlip(p=horizontal_flip)] if train else []),
+        *([A.ColorJitter(brightness=brightness, contrast=contrast, saturation=saturation, hue=hue)] if train else []),
+        A.PadIfNeeded(min_height=image_height, min_width=image_width, border_mode=cv2.BORDER_CONSTANT, fill=(0, 0, 0)),
+        A.Normalize(mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5)),
+        ToTensorV2(),
+    ])
 
     return transform
 
@@ -113,9 +130,10 @@ class PairWiseImageDataset(Dataset):
                 # Leftmost always lower
                 self.pairs.append((lower_image_path, higher_image_path, rank_difference))
 
-            # Early stopping for development
-            if len(self.pairs) >= 50 and dev_run:
-                break
+        # Only use a subset of the dataset for quick dev run
+        if dev_run:
+            self.pairs = random.sample(self.pairs, min(100, len(self.pairs)))
+
         """
         # Due to ties, images are ordered in groups
         for low_idx, lower_image_path in enumerate(ordered_images_subset):
@@ -137,21 +155,30 @@ class PairWiseImageDataset(Dataset):
     def __len__(self):
         return len(self.pairs)
 
+    @functools.cache
+    def load_image(self, image_path):
+        # Load the image from the path
+        img = imread(image_path)
+        # Convert to RGB format
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        return img
+
+
     def __getitem__(self, idx):
         # Retrieve the file paths and rank difference for the given index
         lower_image_path, higher_image_path, rank_difference = self.pairs[idx]
 
         # Open images using PIL and convert to RGB
-        lower_img = Image.open(lower_image_path).convert("RGB")
-        higher_img = Image.open(higher_image_path).convert("RGB")
+        lower_img = self.load_image(lower_image_path)
+        higher_img = self.load_image(higher_image_path)
 
         # Apply the transformation pipeline
-        lower_img = self.transform(lower_img)
-        higher_img = self.transform(higher_img)
+        lower_aug = self.transform(image=lower_img)
+        higher_aug = self.transform(image=higher_img)
 
         # Return the transformed images and the rank difference.
         # Optionally, you can also return the file paths if needed.
-        return lower_img, higher_img, lower_image_path, higher_image_path, rank_difference
+        return lower_aug["image"], higher_aug["image"], lower_image_path, higher_image_path, rank_difference
 
 
 class DataPreparation:
@@ -230,8 +257,10 @@ if __name__ == "__main__":
 
     for i in range(100):
         img_path = all_paths[i]
-        img = Image.open(img_path).convert("RGB")
-        img = transform(img)
+        img = imread(img_path)
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        augmented = transform(image=img)
+        img = augmented["image"]
         # Convert the tensor back to a PIL image
         img = transforms.ToPILImage()(img)
         # Store the transformed image in a new folder
