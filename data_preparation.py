@@ -266,3 +266,39 @@ if __name__ == "__main__":
         # Store the transformed image in a new folder
         img.save(f"transformed_images/{i}.jpg")
 
+    # Create a plot showing the before and after of an image
+    img_path = all_paths[0]
+    img = imread(img_path)
+    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    augmented = transform(image=img)
+    img = augmented["image"]
+    # Convert the tensor back to a PIL image
+    img = transforms.ToPILImage()(img)
+    # Store the transformed image in a new folder
+    img.save(f"transformed_images/0.jpg")
+    # Create a plot showing the before and after of an image
+    import matplotlib.pyplot as plt
+    import numpy as np
+    img_before = Image.open(img_path)
+    img_after = Image.open(f"transformed_images/0.jpg")
+    img_before = np.array(img_before)
+    img_after = np.array(img_after)
+    fig, ax = plt.subplots(1, 2, figsize=(12, 6))
+    ax[0].imshow(img_before)
+    ax[0].set_title("Before")
+    ax[0].axis("off")
+    ax[1].imshow(img_after)
+    ax[1].set_title("After")
+    ax[1].axis("off")
+    plt.show()
+    # Create a plot showing the before and after of an image
+    # Save the plot
+    plt.savefig("transformed_images/plot.jpg")
+
+    # save the two images
+    img_before = Image.fromarray(img_before)
+    img_after = Image.fromarray(img_after)
+    img_before.save("transformed_images/before.jpg")
+    img_after.save("transformed_images/after.jpg")
+
+

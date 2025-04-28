@@ -181,9 +181,6 @@ def label_orderings():
         # Save progress after each insertion
         save_progress(ordered_dict)
 
-    print("Final Ordered List:")
-    print(ordered_images)
-
 
 if __name__ == "__main__":
     label_orderings()

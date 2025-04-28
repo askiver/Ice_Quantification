@@ -2,7 +2,7 @@ TRAINING:
   EPOCHS: 50
   TRAIN_PORTION: 0.5
   VAL_PORTION: 0.25
-  BATCH_SIZE: 32
+  BATCH_SIZE: 64
   LEARNING_RATE: 1.0e-6
   WEIGHT_DECAY: 1.0e-3
   DEVICE: "cuda:0"
@@ -27,7 +27,7 @@ MODEL:
   SNOWRANKER:
     KERNEL_SIZE: 5
   VIT:
-    PRE_TRAINED: "google/vit-base-patch32-224-in21k"
+    PRE_TRAINED: "google/vit-huge-patch14-224-in21k"
     DROPOUT: 0.50
 
 WANDB:
