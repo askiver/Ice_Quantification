@@ -18,7 +18,7 @@ import cv2
 import wandb
 from config import get_config
 from label_ordering import load_progress_ordered
-
+from anonymize_turbine_number import replace_turbine_number
 
 def show_autoencoder_results(
     model: torch.nn.Module,
@@ -306,6 +306,9 @@ def evaluate_and_sort_results(model, transform, test_loader=None):
             wandb.Image(image, caption=f"Rank: {rank}, Score: {score:.2f}, Normalized Score: {normalized_score:.3f}")
         )
 
+    # Sample some images for visualization
+    image_list = random.sample(image_list, min(60, len(image_list)))
+
     # log images to wandb
     wandb.log({"sorted_images": image_list})
 
@@ -326,6 +329,9 @@ def compare_scores(score_dict):
         means.append(torch.mean(torch.tensor(scores)).item())
         stds.append(torch.std(torch.tensor(scores)).item())
         num_images.append(len(scores))
+
+    # Replace turbine numbers with anonymized labels
+    angles = [replace_turbine_number(angle) for angle in angles]
 
     # Create figure with two subplots
     fig, ax1 = plt.subplots(figsize=(14, 6))  # Adjust figure size
@@ -481,6 +487,9 @@ def show_label_counts():
         # Annotate each bar with its value
         for pos, val in zip(bar_positions, bar_values):
             ax.text(pos, val + 0.05, str(val), ha="center", va="bottom", fontsize=8)
+
+    # Change angle labels to anonymization
+    angles = [replace_turbine_number(angle) for angle in angles]
 
     # Configure x-axis
     ax.set_xticks(x + width * (len(labels) - 1) / 2)

@@ -2,6 +2,7 @@
 import logging
 import torch
 from torch import nn
+from utils import kendall_tau
 import wandb
 from config import get_config
 from torch.optim.lr_scheduler import OneCycleLR
@@ -25,7 +26,7 @@ class Trainer:
         )
 
         self.train_method = self.pair_learning if config["TRAINING"]["LOSS"] == "PairWise" else self.list_learning
-        self.lowest_val_loss = float("inf")
+        self.lowest_tau = float("-inf")
         self.best_model = None
         self.early_stopping = config["TRAINING"]["EARLY_STOPPING"]
 
@@ -48,18 +49,18 @@ class Trainer:
         for epoch in range(self.epochs):
 
             self.model.train()
-            epoch_loss = self.train_method(train_loader, train=True)
+            epoch_loss, _ = self.train_method(train_loader, train=True)
             self.logger.info("Epoch: %d, Training Loss: %.6f", epoch, epoch_loss / train_length)
 
 
             self.model.eval()
             with torch.no_grad():
-                epoch_val_loss = self.train_method(val_loader, train=False)
-            self.logger.info("Epoch: %d, Validation Loss: %.6f", epoch, epoch_val_loss / val_length)
+                epoch_val_loss, tau = self.train_method(val_loader, train=False)
+            self.logger.info("Epoch: %d, Validation Loss: %.6f, Tau: %.4f", epoch, epoch_val_loss / val_length, tau)
 
 
-            if epoch_val_loss < self.lowest_val_loss:
-                self.lowest_val_loss = epoch_val_loss
+            if tau > self.lowest_tau:
+                self.lowest_tau = tau
                 self.best_model = self.model.state_dict()
                 epochs_since_improvement = 0
 
@@ -68,6 +69,7 @@ class Trainer:
                     "epoch": epoch,
                     "train_loss": epoch_loss / train_length,
                     "val_loss": epoch_val_loss / val_length,
+                    "kendall_tau": tau,
                     "learning_rate": self.scheduler.get_last_lr()[0],
                 })
 
@@ -111,6 +113,7 @@ class Trainer:
 
     def pair_learning(self, data_loader, train=True):
         epoch_loss = 0.0
+        tau = None
         for lower_img_batch, higher_img_batch, _, _, rank_difference in data_loader:
             self.optimizer.zero_grad()
             lower_img_data, higher_img_data, rank_difference = (
@@ -133,4 +136,7 @@ class Trainer:
                 # Update learning rate
                 self.scheduler.step()
 
-        return epoch_loss
+        if not train:
+            tau = kendall_tau(self.model, data_loader, self.device)
+
+        return epoch_loss, tau

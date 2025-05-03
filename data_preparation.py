@@ -13,7 +13,7 @@ import albumentations as A
 from torch.utils.data import ConcatDataset, DataLoader, Dataset, Subset, random_split
 from torchvision import datasets, transforms
 from torchvision.transforms import functional as F
-
+from anonymize_turbine_number import replace_turbine_number
 from config import get_config, init_config
 from label_images import load_progress
 from label_ordering import load_progress_ordered
@@ -132,7 +132,7 @@ class PairWiseImageDataset(Dataset):
 
         # Only use a subset of the dataset for quick dev run
         if dev_run:
-            self.pairs = random.sample(self.pairs, min(100, len(self.pairs)))
+            self.pairs = random.sample(self.pairs, min(1000, len(self.pairs)))
 
         """
         # Due to ties, images are ordered in groups
@@ -197,7 +197,9 @@ class DataPreparation:
 
         dataset_class = ListImageDataset if config["TRAINING"]["LOSS"] != "PairWise" else PairWiseImageDataset
 
-        for wind_turbine in ["07", "21", "41"]:
+        for wind_turbine in ["A", "B", "C"]:
+            # Change wind turbine to proper number
+            wind_turbine = replace_turbine_number(wind_turbine)
             for angle in ["01", "02", "03"]:
                 ordered_images = load_progress_ordered(f"WT_{wind_turbine}_SVIV{angle}")
 
