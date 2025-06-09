@@ -1,0 +1,38 @@
+[project]
+name = "ice-quantification"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "albumentations==2.0.8",
+    "label-studio>=1.15.0",
+    "matplotlib>=3.10.0",
+    "networkx>=3.4.2",
+    "opencv-python>=4.11.0.86",
+    "pandas>=2.2.3",
+    "paramiko>=3.5.1",
+    "pillow-heif>=0.22.0",
+    "pyyaml>=6.0.2",
+    "scikit-learn>=1.6.1",
+    "scp>=0.15.0",
+    "tqdm>=4.67.1",
+    "transformers>=4.48.3",
+    "wandb>=0.19.5",
+]
+
+[tool.ruff]
+line-length = 120
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+[tool.ruff.lint]
+select = ['ALL']
+ignore = ['F401', 'F841', 'COM812', 'ISC001', 'D203', 'D213', 'D100', 'D101', 'D102', 'D103', 'D107', 'S311']
+
+[dependency-groups]
+dev = [
+    "ruff>=0.9.9",
+]
