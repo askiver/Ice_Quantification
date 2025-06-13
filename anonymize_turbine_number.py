@@ -1,4 +1,3 @@
-
 turbine_dict = {}
 
 for idx, value in enumerate(["07", "21", "41"]):
