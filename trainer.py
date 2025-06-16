@@ -1,6 +1,5 @@
 # Class that trains the model
 import logging
-
 import torch
 from torch import nn
 from torch.amp import GradScaler, autocast

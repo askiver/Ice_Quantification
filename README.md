@@ -1,3 +1,11 @@
+## Installation
+To install the required dependencies for this project, you can use the following command:
+
+```python -m pip install .```
+
+This command will install the package defined in the `pyproject.toml` file, along with all its dependencies.
+Additionally, pytorch must be installed separately. You can find the appropriate installation command for your system at [pytorch.org](https://pytorch.org/get-started/locally/).
+
 ## File overview
 Below are the files in the repository and their descriptions:
 - anonymize_turbine_number.py: A script to anonymize turbine numbers in the Tonstad dataset.
@@ -8,6 +16,7 @@ Below are the files in the repository and their descriptions:
 - label_ordering.py: A script to label the ordering of images in the dataset.
 - main.py: The main script that runs the project, orchestrating the data preparation, model training, and evaluation.
 - model.py: Contains the model architecture and loss functions.
+- predict_images.py: A script for making predictions on images using the trained model.
 - pyproject.toml: A configuration file for the project, specifying dependencies.
 - trainer.py: A script for training the model, including the training loop and evaluation metrics.
 - utils.py: Contains utility functions used throughout the project.

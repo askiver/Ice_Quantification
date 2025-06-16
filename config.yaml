@@ -21,7 +21,7 @@ IMAGE:
   HUE: 0.25
 
 DATASET:
-  SPLIT: "turbine"
+  SPLIT: "all"
 
 
 
@@ -29,7 +29,7 @@ MODEL:
   SNOWRANKER:
     KERNEL_SIZE: 5
   VIT:
-    PRE_TRAINED: "google/vit-base-patch32-224-in21k"
+    PRE_TRAINED: "google/vit-huge-patch14-224-in21k"
     DROPOUT: 0.50
 
 WANDB:
